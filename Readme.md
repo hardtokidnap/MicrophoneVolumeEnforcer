@@ -35,9 +35,9 @@ dotnet add package Topshelf
     dotnet restore
     ```
 4. Ensure the global json has this:
-```sh
-dotnet new globaljson --sdk-version 8.0.100
-```
+    ```sh
+    dotnet new globaljson --sdk-version 8.0.100
+    ```
 
 ## Usage
 To run the application, use the following command:
