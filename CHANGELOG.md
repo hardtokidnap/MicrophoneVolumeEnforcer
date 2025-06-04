@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Released 2.1.0] - 2025-06-04
 
 ### Added
 - **Modern WPF Application**: Complete rewrite from console service to WPF application with WebView2
@@ -50,50 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Input Validation** – Host validates microphone device identifiers and limits settings payload size.
 - **Settings Size Guard** – Prevents denial-of-service via oversized JSON in `SaveSettings`.
 
-## [2.0.0] - 2025-06-04
-
-### Added
-- **Modern WPF Application**: Complete rewrite from console service to WPF application with WebView2
-- **Web-Based User Interface**: Modern HTML/CSS/JavaScript interface with responsive design
-- **Dark/Light Theme Support**: Toggle between themes with system preference detection
-- **System Tray Integration**: Minimize to system tray with balloon notifications
-- **Advanced Settings Panel**: Comprehensive configuration options
-- **Close Behavior Configuration**: Choose between minimize, ask, or exit when closing
-- **Auto-Save Functionality**: All settings automatically saved without manual intervention
-- **Start with Windows**: Registry integration for Windows startup
-- **Keyboard Shortcuts**: Alt+T for theme toggling
-- **Enhanced Tray Menu**: Restore, Minimize, and Exit options
-- **Session-Based Notifications**: Smart balloon notifications (only once per session)
-- **Real-Time Volume Updates**: Live volume adjustment with visual feedback
-- **Device Selection UI**: Dropdown menu for microphone selection
-- **Volume Slider**: Interactive volume control with percentage display
-- **Settings Persistence**: JSON-based configuration storage in AppData
-- **Debug Logging**: Comprehensive debug output for troubleshooting
-- **Window State Management**: Proper minimize/restore functionality
-- **Custom Close Dialog**: User-friendly dialog for close behavior selection
-
-### Changed
-- **Architecture**: Migrated from console service to WPF + WebView2 architecture
-- **Audio Engine**: Enhanced CoreAudio integration with better error handling
-- **User Experience**: Complete UI/UX overhaul with modern design principles
-- **Settings Storage**: Changed from service configuration to JSON files
-- **Application Lifecycle**: Improved startup, shutdown, and background operation
-
-### Removed
-- **Console Service**: Removed Topshelf-based Windows service implementation
-- **Command Line Interface**: Replaced with graphical user interface
-- **Service Dependencies**: Removed Topshelf dependency
-
-### Fixed
-- **Volume Enforcement**: Improved reliability of volume monitoring and enforcement
-- **Memory Management**: Better resource cleanup and disposal
-- **Error Handling**: Enhanced error reporting and graceful failure handling
-- **Settings Persistence**: Reliable saving and loading of user preferences
-
-### Security
-- **JSON Validation**: Input validation for settings data
-- **File System Access**: Secure handling of configuration files
-- **Host-Web Communication**: Proper boundary validation between C# and JavaScript
 
 ## [1.0.0] - 2024-01-28
 
