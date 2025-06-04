@@ -4,6 +4,7 @@
 # User-specific files
 *.suo
 *.user
+*.userosscache
 *.sln.docstates
 
 # Build results
@@ -11,11 +12,24 @@
 [Dd]ebug/
 [Rr]elease/
 x64/
-[Bb]in/
-[Oo]bj/
-bin\
-obj\
-publish\
+arm64/
+[Ii][Pp][Cc][H]/
+*.aps
+*.ncb
+*.opendb
+*.sdf
+*.VC.db
+*.pdb
+*.ilk
+*.tlog
+*.obj
+*.pch
+*.vspscc
+*.vssscc
+*.scc
+*.vsix
+*.vsixmanifest
+*.vcxproj.user
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
@@ -24,11 +38,7 @@ publish\
 *_i.c
 *_p.c
 *_i.h
-*.ilk
 *.meta
-*.obj
-*.pch
-*.pdb
 *.pgc
 *.pgd
 *.rsp
@@ -43,17 +53,10 @@ publish\
 *.vssscc
 .builds
 *.pidb
-*.log
 *.svclog
-*.scc
 
 # Visual C++ cache files
 ipch/
-*.aps
-*.ncb
-*.opensdf
-*.sdf
-*.cachefile
 
 # Visual Studio profiler
 *.psess
@@ -134,3 +137,29 @@ $RECYCLE.BIN/
 .DS_Store
 
 _NCrunch*
+
+# Ignore Rider files
+.idea/
+
+# Ignore Node.js modules directory (if using Node.js for frontend parts)
+node_modules/
+
+# Ignore other potentially sensitive or large files
+*.bak
+*.tmp
+
+# Ignore .vs folder
+.vs/
+
+# Ignore generated files from .NET tools
+project.lock.json
+project.assets.json # Usually in obj/ but good to have
+*.Generated.cs
+
+# Installer output
+installer/
+obj/
+
+# Build scripts output
+*.tmp
+*.log

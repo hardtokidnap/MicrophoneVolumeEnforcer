@@ -1,0 +1,457 @@
+html[data-theme='light'] {
+    --bg-color: #ffffff;
+    --text-color: #212529;
+    --primary-color: #007bff;
+    --primary-color-rgb: 0, 123, 255;
+    --primary-text-color: #ffffff;
+    --secondary-bg-color: #f8f9fa;
+    --border-color: #ced4da;
+    --input-bg-color: #ffffff;
+    --input-border-color: #ced4da;
+    --input-focus-border-color: #007bff;
+    --input-focus-shadow-color-rgb: 0, 123, 255;
+    --button-hover-bg-color: #0056b3;
+    --slider-thumb-bg-color: #007bff;
+    --slider-track-bg-color: #dee2e6;
+    --slider-track-height: 6px;
+    --slider-thumb-size: 16px;
+    --slider-thumb-size-moz: 14px;
+    --text-color-rgb: 33, 37, 41; /* For section borders */
+    --status-success-text: #155724;
+    --status-success-bg: #d4edda;
+    --status-success-border: #c3e6cb;
+    --status-error-text: #721c24;
+    --status-error-bg: #f8d7da;
+    --status-error-border: #f5c6cb;
+    --status-warning-text: #856404;
+    --status-warning-bg: #fff3cd;
+    --status-warning-border: #ffeeba;
+    --status-info-text: #0c5460;
+    --status-info-bg: #d1ecf1;
+    --status-info-border: #bee5eb;
+}
+
+html[data-theme='dark'] {
+    --bg-color: #202124;
+    --text-color: #e8eaed;
+    --primary-color: #64b2ff;
+    --primary-color-rgb: 100, 178, 255;
+    --primary-text-color: #0d1117;
+    --secondary-bg-color: #2c2d30;
+    --border-color: #5f6368;
+    --input-bg-color: #303134;
+    --input-border-color: #5f6368;
+    --input-focus-border-color: #64b2ff;
+    --input-focus-shadow-color-rgb: 100, 178, 255;
+    --button-hover-bg-color: #8fc9ff;
+    --slider-thumb-bg-color: #64b2ff;
+    --slider-track-bg-color: #5f6368;
+    --slider-track-height: 6px;
+    --slider-thumb-size: 16px;
+    --slider-thumb-size-moz: 14px;
+    --text-color-rgb: 232, 234, 237; /* For section borders */
+    --status-success-text: #d4edda;
+    --status-success-bg: #155724;
+    --status-success-border: #1c7430;
+    --status-error-text: #f8d7da;
+    --status-error-bg: #721c24;
+    --status-error-border: #8f2d36;
+    --status-warning-text: #fff3cd;
+    --status-warning-bg: #856404;
+    --status-warning-border: #a07d05;
+    --status-info-text: #d1ecf1;
+    --status-info-bg: #0c5460;
+    --status-info-border: #0e6f80;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 1rem;
+    font-size: 1rem; /* Base font size to 1rem (16px by default) */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Align to top for when content is short */
+    min-height: 100vh;
+}
+
+.container {
+    background-color: var(--secondary-bg-color);
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    width: clamp(18rem, 90vw, 28rem); /* Fluid width */
+    position: relative;
+    container-type: inline-size; /* For container queries */
+}
+
+h1 {
+    font-size: 1.5rem; /* Smaller H1 for compactness */
+    color: var(--text-color);
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    padding-left: 50px; /* Reserve space, e.g., for theme toggle */
+    padding-right: 50px; /* Reserve space, e.g., for theme toggle */
+    box-sizing: border-box; /* Ensure padding is included correctly */
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label:not(.checkbox-label) {
+    display: block;
+    margin-bottom: 0.25rem; /* Reduced margin */
+    font-weight: 500;
+}
+
+select,
+input[type="range"],
+button {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--input-border-color);
+    border-radius: 4px;
+    background-color: var(--input-bg-color);
+    color: var(--text-color);
+    font-size: 0.875rem; /* Slightly smaller font for inputs */
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+select:focus,
+input[type="range"]:focus,
+button:focus-visible,
+input[type="checkbox"]:focus-visible {
+    /* border-color: var(--input-focus-border-color); No longer needed if only outline */
+    outline: 2px solid var(--primary-color); 
+    outline-offset: 2px;
+    /* box-shadow: 0 0 0 0.2rem rgba(var(--input-focus-shadow-color-rgb), 0.35); Standardizing away from box-shadow for focus */
+}
+
+/* Select wrapper for custom arrow or just consistent height */
+.select-wrapper {
+    /* min-width: 150px; Removed as grid should handle sizing */
+    /* No specific styling needed if grid handles it well */
+}
+
+#microphone-select {
+     width: 100%;
+}
+
+.button-small {
+    /* width: 60px; Remove fixed width */
+    width: auto; /* Fit to content */
+    padding: 0.5rem 0.75rem; /* Adjust padding as needed */
+    margin-left: 8px;
+    vertical-align: middle;
+    flex-shrink: 0; /* Prevent button from shrinking */
+}
+
+/* Add to .form-group that contains select and button */
+.form-group.inline-group {
+    /* display: flex; */ /* Removed as per user request, grid is now the primary layout */
+    align-items: center; /* This might still be useful for grid items if they are not full height */
+}
+
+button {
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
+    border: 1px solid var(--primary-color);
+    cursor: pointer;
+    font-weight: 500;
+    /* box-shadow: none; Ensure no conflicting box-shadow from other rules */
+}
+
+button:hover {
+    background-color: var(--button-hover-bg-color);
+    border-color: var(--button-hover-bg-color);
+}
+
+/* Checkbox styling */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: normal;
+}
+
+#enforce-volume-checkbox {
+    width: auto; /* Override default width */
+    margin-right: 0.5rem;
+    accent-color: var(--primary-color);
+    height: 1em;
+    width: 1em;
+}
+
+/* Volume Slider */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent; /* Otherwise, track is not visible */
+    cursor: grab; /* Add grab cursor */
+    padding: 0; /* Remove default padding */
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+    background: var(--slider-track-bg-color);
+    height: 6px;
+    border-radius: 3px;
+}
+input[type="range"]::-moz-range-track {
+    background: var(--slider-track-bg-color);
+    height: 6px;
+    border-radius: 3px;
+    border: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: calc((var(--slider-track-height) - var(--slider-thumb-size)) / 2);
+    background-color: var(--slider-thumb-bg-color);
+    height: var(--slider-thumb-size);
+    width: var(--slider-thumb-size);
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+}
+input[type="range"]::-moz-range-thumb {
+    background-color: var(--slider-thumb-bg-color);
+    height: var(--slider-thumb-size-moz);
+    width: var(--slider-thumb-size-moz);
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+}
+
+input[type="range"]:active {
+    cursor: grabbing;
+}
+
+.status {
+    margin-top: 1.5rem;
+    padding: 0.75rem 1rem; /* Adjusted padding */
+    border-radius: 4px;
+    font-size: 0.875rem;
+    text-align: center;
+    word-break: break-word;
+    /* Default state (like info) */
+    background-color: var(--status-info-bg);
+    color: var(--status-info-text);
+    border: 1px solid var(--status-info-border);
+}
+
+.status.success {
+    background-color: var(--status-success-bg);
+    color: var(--status-success-text);
+    border-color: var(--status-success-border);
+}
+
+.status.error {
+    background-color: var(--status-error-bg);
+    color: var(--status-error-text);
+    border-color: var(--status-error-border);
+}
+
+.status.warning {
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning-text);
+    border-color: var(--status-warning-border);
+}
+
+.header-bar-left {
+    position: absolute;
+    top: 1rem; 
+    left: 1rem; 
+    height: auto; 
+    margin-bottom: 0; 
+    z-index: 10; 
+    display: flex;
+    gap: 8px;
+}
+
+.header-bar-right {
+    position: absolute;
+    top: 1rem; 
+    right: 1rem; 
+    height: auto; 
+    margin-bottom: 0; 
+    z-index: 10; 
+    display: flex;
+    gap: 8px;
+}
+
+#theme-toggle-button,
+#settings-toggle-button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 0;
+    display: flex; /* To center icon if needed */
+    align-items: center;
+    justify-content: center;
+    width: 30px; /* Explicit width */
+    height: 30px; /* Explicit height */
+}
+
+#theme-toggle-button .theme-icon,
+#settings-toggle-button .theme-icon {
+    width: 24px;
+    height: 24px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    #theme-toggle-button .theme-icon,
+    #settings-toggle-button .theme-icon {
+        transition: transform 0.3s ease-in-out;
+    }
+    #theme-toggle-button:hover .theme-icon,
+    #theme-toggle-button:focus-visible .theme-icon,
+    #settings-toggle-button:hover .theme-icon,
+    #settings-toggle-button:focus-visible .theme-icon {
+        transform: rotate(180deg);
+    }
+}
+
+.control-section {
+    /* border: 1px solid var(--border-color); Original border */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 0.5px solid rgba(var(--text-color-rgb), .12); /* Subtle inset-like border */
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 6px;
+}
+
+.control-section h2 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+#device-section {
+    margin-top: 0; /* First section no top margin */
+}
+
+.button-outline {
+    background-color: transparent;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.button-outline:hover {
+    background-color: rgba(var(--primary-color-rgb), 0.1); /* Use RGB version for alpha */
+    color: var(--primary-color);
+}
+
+.action-group {
+    margin-top: 1.5rem; /* Add some space above the save button */
+}
+
+.inline-group {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: .75rem;
+    align-items: center;
+}
+
+#enforce-volume-checkbox:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+     /* box-shadow: none; Ensure no conflicting box-shadow from other rules */
+}
+
+@container (max-width: 22rem) { /* New container query */
+  body {
+    padding: .5rem;
+  }
+  .container {
+    padding: 1rem .75rem;
+  }
+  h1 {
+    font-size: 1.25rem;
+  }
+  .inline-group .select-wrapper {
+      grid-row: 2;
+  }
+  .inline-group #refresh-devices-button {
+    grid-row: 3;
+    justify-self: end;
+    width: auto;
+  }
+  .inline-group {
+    display: grid; /* This was already in the media query, ensure it's here */
+    grid-template-columns: 1fr;
+    gap: .5rem;
+  }
+}
+
+/* Light mode mock image */
+#lightmode-mock-image {
+  display: none; /* Hidden by default */
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 50px; /* Adjust size as needed */
+  height: auto;
+  z-index: 20; /* Above header-bar if they somehow overlap */
+  border-radius: 4px; /* Optional: if you want rounded corners */
+}
+
+html[data-theme='light'] #lightmode-mock-image {
+  display: block; /* Show only in light mode */
+}
+
+/* Styles for page-like views within the container */
+#main-view,
+#settings-view {
+    width: 100%; /* Take full width of the container */
+}
+
+/* Specific header for settings page */
+.page-header {
+    display: flex;
+    align-items: center;
+    /* padding-bottom: 0.5rem; */ /* Removed, title has own margin */
+    /* border-bottom: 1px solid var(--border-color); */ /* Removed, sections have borders */
+    margin-bottom: 1rem; /* Space below header */
+    position: relative; /* For absolute positioning of title if needed, or just layout */
+}
+
+#back-to-main-button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; 
+    height: 30px;
+    /* margin-right: 8px; */ /* Let title handle spacing or use gap on .page-header */
+}
+
+#back-to-main-button .theme-icon { /* Reusing .theme-icon class for consistency */
+    width: 24px;
+    height: 24px;
+}
+
+.page-title {
+    font-size: 1.25rem; /* Slightly smaller than main H1 */
+    color: var(--text-color);
+    margin: 0 auto; /* Center title if back button is on one side */
+    padding-left: 30px; /* Space for back button if it was absolute, or to balance */
+    padding-right: 30px; /* Space for potential right-side button, or to balance */
+    text-align: center; /* Ensure centering */
+    flex-grow: 1; /* Allow title to take up space */
+} 
