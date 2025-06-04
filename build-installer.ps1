@@ -27,7 +27,7 @@ if (-not $SkipBuild) {
     if (Test-Path "obj") { Remove-Item "obj" -Recurse -Force }
     
     # Build and publish
-    dotnet publish -c $Configuration -r win-x64 --self-contained false -p:PublishSingleFile=false -o "bin\$Configuration\net8.0-windows\publish"
+    dotnet publish MicrophoneVolumeEnforcer.csproj -c $Configuration -r win-x64 --self-contained false -p:PublishSingleFile=false -o "bin\$Configuration\net8.0-windows\publish"
     
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed!"
