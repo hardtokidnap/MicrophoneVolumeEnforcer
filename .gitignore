@@ -158,6 +158,7 @@ project.assets.json # Usually in obj/ but good to have
 
 # Installer output
 installer/
+obj/
 
 # Build scripts output
 *.tmp
