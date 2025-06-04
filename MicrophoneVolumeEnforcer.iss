@@ -19,8 +19,8 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
 UninstallDisplayIcon={app}\MicrophoneVolumeEnforcer.exe
 
@@ -58,7 +58,7 @@ begin
   if CurStep = ssPostInstall then
   begin
     // Clean up any existing startup entries if not selected
-    if not IsTaskSelected('startupicon') then
+    if not WizardIsTaskSelected('startupicon') then
     begin
       RegDeleteValue(HKEY_CURRENT_USER, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'MicrophoneVolumeEnforcer');
     end;
