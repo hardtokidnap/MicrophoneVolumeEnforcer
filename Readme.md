@@ -2,6 +2,8 @@
 
 A modern WPF application that monitors and enforces microphone volume levels to ensure consistent audio input across different applications and system changes.
 
+Yes, i had AI improve the readme. i was tired and i had a huge need for a toilet break. Bite me.
+
 ## Features
 
 ### 🎤 **Audio Control**
@@ -25,14 +27,9 @@ A modern WPF application that monitors and enforces microphone volume levels to 
   - Minimize to Tray
   - Ask what to do
   - Exit Application
-- **Remember Close Choice**: Option to remember your close behavior preference
-- **Settings Persistence**: All preferences saved to user's AppData folder
 
 ### 🔧 **System Integration**
 - **Windows Registry Integration**: Proper startup configuration through Windows registry
-- **Tray Icon Context Menu**: Quick access to Restore, Minimize, and Exit functions
-- **Multiple Close Options**: Window title bar minimize button and close behavior dialog
-- **Session-Based Notifications**: Smart balloon notifications (only once per session)
 
 ## Installation
 
