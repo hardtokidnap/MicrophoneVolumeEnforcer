@@ -95,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **File System Access**: Secure handling of configuration files
 - **Host-Web Communication**: Proper boundary validation between C# and JavaScript
 
-## [1.0.0] - 2024-XX-XX
+## [1.0.0] - 2024-01-28
 
 ### Added
 - **Initial Release**: Basic console service implementation
