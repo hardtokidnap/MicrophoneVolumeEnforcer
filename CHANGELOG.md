@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] - 2024-12-06
+## [2.0.0] - 2025-06-04
 
 ### Added
 - **Modern WPF Application**: Complete rewrite from console service to WPF application with WebView2
