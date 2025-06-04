@@ -238,10 +238,30 @@ public partial class MainWindow : Window
         var userDataFolder = Path.Combine(Path.GetTempPath(), "MicrophoneVolumeEnforcer_WebView2");
         var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
         await webView.EnsureCoreWebView2Async(env);
+        // SECURITY HARDENING: Restrict WebView2 capabilities and navigation
+        var settings = webView.CoreWebView2.Settings;
+        settings.AreDevToolsEnabled = false; // Disable dev-tools in production
+        settings.AreDefaultContextMenusEnabled = false; // Disable default context menu
+        settings.AreDefaultScriptDialogsEnabled = false; // Disable alert/confirm/prompt
+
+        // Attach native host object
         webView.CoreWebView2.AddHostObjectToScript("nativeHost", new HostBridge(this));
         webView.CoreWebView2.ContextMenuRequested += CoreWebView2_ContextMenuRequested;
+
+        // Determine path to packaged index.html
         string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
         string indexPath = Path.Combine(appDirectory, "wwwroot", "index.html");
+
+        // Allow only the packaged index.html (and about:blank for internal navigation)
+        string allowedUri = new Uri(indexPath).AbsoluteUri;
+        webView.CoreWebView2.NavigationStarting += (_, navArgs) =>
+        {
+            if (!navArgs.Uri.Equals(allowedUri, StringComparison.OrdinalIgnoreCase) &&
+                !navArgs.Uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase))
+            {
+                navArgs.Cancel = true; // Block untrusted navigation
+            }
+        };
 
         if (File.Exists(indexPath))
         {
@@ -319,6 +339,11 @@ public class HostBridge
         {
             _staticDeviceEnumerator ??= new MMDeviceEnumerator();
             var enumerator = _staticDeviceEnumerator;
+            if (!IsValidDeviceName(deviceId))
+            {
+                System.Windows.MessageBox.Show("Invalid device identifier provided.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             var device = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
                                  .FirstOrDefault(d => d.DeviceFriendlyName == deviceId);
 
@@ -356,6 +381,11 @@ public class HostBridge
     {
         try
         {
+            if (settingsJson == null || settingsJson.Length > 32 * 1024) // 32 KB guard
+            {
+                throw new InvalidOperationException("Settings payload too large.");
+            }
+
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string settingsDir = Path.Combine(appDataPath, AppNameForStartup); // Use constant
             Directory.CreateDirectory(settingsDir); 
@@ -403,6 +433,11 @@ public class HostBridge
         {
             _staticDeviceEnumerator ??= new MMDeviceEnumerator();
             var enumerator = _staticDeviceEnumerator;
+            if (!IsValidDeviceName(deviceId))
+            {
+                System.Windows.MessageBox.Show("Invalid device identifier provided.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             var device = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
                                    .FirstOrDefault(d => d.DeviceFriendlyName == deviceId);
             if (device != null && device.AudioEndpointVolume != null)
@@ -529,6 +564,14 @@ public class HostBridge
             return null; // Don't show MessageBox here, as it might be during shutdown
         }
     }
+
+    // --------------------------- SECURITY HELPERS ---------------------------
+    private static bool IsValidDeviceName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name!.Length > 128) return false;
+        // Disallow control chars and path separators to mitigate log/file injection
+        return name.All(ch => !char.IsControl(ch) && ch != '\\' && ch != '/');
+    }
 }
 
 public class CloseConfirmationDialog : Window
@@ -538,9 +581,9 @@ public class CloseConfirmationDialog : Window
 
     public CloseConfirmationDialog()
     {
-        Title = "Close Behavior";
+        Title = "You're not getting away that easily!";
         Width = 480;
-        Height = 380;
+        Height = 450;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
 
@@ -564,7 +607,7 @@ public class CloseConfirmationDialog : Window
             Height = 30,
             Margin = new Thickness(0, 0, 15, 0),
             IsDefault = true,
-            FontSize = 14
+            FontSize = 10
         };
 
         var cancelButton = new System.Windows.Controls.Button
@@ -573,7 +616,7 @@ public class CloseConfirmationDialog : Window
             Width = 80,
             Height = 30,
             IsCancel = true,
-            FontSize = 14
+            FontSize = 10
         };
 
         buttonPanel.Children.Add(okButton);
@@ -593,7 +636,8 @@ public class CloseConfirmationDialog : Window
         // Message text
         var messageText = new System.Windows.Controls.TextBlock
         {
-            Text = "What would you like to do when closing the application?",
+            Text = "Now.. Do you want to exit or keep running in the background?\n" +
+                   "I recommend the latter.",
             FontSize = 16,
             FontWeight = FontWeights.Bold,
             Margin = new Thickness(0, 0, 0, 25),
@@ -605,21 +649,29 @@ public class CloseConfirmationDialog : Window
         // Radio buttons for actions
         var minimizeRadio = new System.Windows.Controls.RadioButton
         {
-            Content = "Minimize to Tray - Keep running in the background",
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = "Minimize to Tray - Keep running in the background",
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 14
+            },
             IsChecked = true,
             Margin = new Thickness(0, 8, 0, 8),
             GroupName = "CloseAction",
-            FontSize = 14,
             Padding = new Thickness(8, 4, 0, 4)
         };
         contentPanel.Children.Add(minimizeRadio);
 
         var exitRadio = new System.Windows.Controls.RadioButton
         {
-            Content = "Exit Application - Completely close the application",
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = "Exit Application\nI will be devestated and will cry myself to sleep",
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 14
+            },
             Margin = new Thickness(0, 8, 0, 25),
             GroupName = "CloseAction",
-            FontSize = 14,
             Padding = new Thickness(8, 4, 0, 4)
         };
         contentPanel.Children.Add(exitRadio);
@@ -627,9 +679,13 @@ public class CloseConfirmationDialog : Window
         // Remember choice checkbox
         var rememberCheckBox = new System.Windows.Controls.CheckBox
         {
-            Content = "Remember my choice and don't ask again",
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = "Remember my choice and stop nagging me\n(I didn't check if this works, but it should, technically..)",
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 14
+            },
             Margin = new Thickness(0, 15, 0, 20),
-            FontSize = 13,
             Padding = new Thickness(8, 4, 0, 4)
         };
         contentPanel.Children.Add(rememberCheckBox);
