@@ -65,13 +65,15 @@ An Inno Setup installer is provided for easy distribution. To build it:
    ```
 
 The installer will be created as `installer\MicrophoneVolumeEnforcer-Setup.exe` and includes:
-- ✅ **Desktop shortcut option** (unchecked by default)
-- ✅ **Windows startup option** (unchecked by default) 
-- ✅ **Start menu entries**
-- ✅ **Proper uninstallation** with settings cleanup option
-- ✅ **Small size** (~10-15 MB) with LZMA compression
-- ✅ **Modern installer UI** compatible with Windows 10/11
-- ✅ **No admin privileges required** (installs to user profile)
+- ✅ **Desktop shortcut option** (checkbox during install)
+- ✅ **Launch at Windows startup** (checkbox during install) 
+- ✅ **Windows 10/11 compatible** (minimum Windows 10 build 17763)
+- ✅ **Lightweight** (~10-15 MB with LZMA compression)
+- ✅ **No admin privileges required** (user-level install)
+- ✅ **Modern UI** with proper uninstall support
+- ✅ **Automatic prerequisite checking** for .NET 8.0 and WebView2
+- ✅ **Guided dependency installation** with direct download links
+- ✅ **Smart detection** of missing system components
 
 ## Usage
 
@@ -177,3 +179,28 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.**
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and changes.
+
+## Overview
+
+**Microphone Volume Enforcer** is a lightweight WPF application that automatically maintains your microphone volume at your desired level, preventing it from being accidentally changed by applications, drivers, or system updates.
+
+## System Requirements
+
+### Minimum Requirements
+- **Operating System**: Windows 10 (Build 17763) or Windows 11
+- **Architecture**: 64-bit (x64) systems only
+- **.NET Runtime**: .NET 8.0 Desktop Runtime
+- **WebView2**: Microsoft Edge WebView2 Runtime
+- **Disk Space**: ~50 MB free space
+- **Memory**: 100 MB RAM
+
+### Automatic Dependency Checking
+The installer automatically checks for required components and will:
+- ✅ **Detect missing .NET 8.0 Runtime** and provide download links
+- ✅ **Detect missing WebView2 Runtime** and provide download links  
+- ✅ **Guide you through the installation process** with helpful dialogs
+- ✅ **Allow you to continue anyway** if you prefer to install dependencies later
+
+> **Note**: Most Windows 10/11 systems already have WebView2 pre-installed. .NET 8.0 Runtime may need to be downloaded for first-time installations.
+
+## Key Features
