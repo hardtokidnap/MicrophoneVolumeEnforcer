@@ -1,16 +1,34 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-     <OutputType>WinExe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2210.55" />
     <PackageReference Include="CoreAudio" Version="1.40.0" />
-    <PackageReference Include="Topshelf" Version="4.3.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="wwwroot\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- 
+    For production builds, consider adding steps to minify wwwroot/main.js and wwwroot/style.css.
+    Tools like esbuild and LightningCSS can be used for this.
+    Example commands (run separately or integrate into a build script/CI process):
+      npx esbuild wwwroot/main.js - -bundle - -minify - -outfile=wwwroot/main.min.js
+      npx lightningcss wwwroot/style.css -o wwwroot/style.min.css - -minify
+    Then update index.html to reference the .min.js and .min.css files.
+    Alternatively, .NET Core offers bundling and minification libraries.
+  -->
 
 </Project>
