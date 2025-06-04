@@ -54,6 +54,25 @@ A modern WPF application that monitors and enforces microphone volume levels to 
 dotnet publish -c Release -r win-x64 --self-contained
 ```
 
+### Building the Installer
+
+An Inno Setup installer is provided for easy distribution. To build it:
+
+1. **Install Inno Setup** (free): Download from [jrsoftware.org](https://jrsoftware.org/isinfo.php)
+2. **Run the build script**:
+   ```powershell
+   .\build-installer.ps1
+   ```
+
+The installer will be created as `installer\MicrophoneVolumeEnforcer-Setup.exe` and includes:
+- ✅ **Desktop shortcut option** (unchecked by default)
+- ✅ **Windows startup option** (unchecked by default) 
+- ✅ **Start menu entries**
+- ✅ **Proper uninstallation** with settings cleanup option
+- ✅ **Small size** (~10-15 MB) with LZMA compression
+- ✅ **Modern installer UI** compatible with Windows 10/11
+- ✅ **No admin privileges required** (installs to user profile)
+
 ## Usage
 
 ### First Time Setup
