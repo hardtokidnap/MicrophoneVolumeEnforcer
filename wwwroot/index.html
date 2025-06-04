@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microphone Volume Enforcer</title>
+    <script>
+        // IIFE to set theme before CSS loads, preventing FOUC
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } else if (prefersDark) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css"> REMOVING PICO CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+        <symbol id="svg-icon-sun" viewBox="0 0 32 32">
+            <path d="M 15 3 L 15 8 L 17 8 L 17 3 Z M 7.5 6.09375 L 6.09375 7.5 L 9.625 11.0625 L 11.0625 9.625 Z M 24.5 6.09375 L 20.9375 9.625 L 22.375 11.0625 L 25.90625 7.5 Z M 16 9 C 12.144531 9 9 12.144531 9 16 C 9 19.855469 12.144531 23 16 23 C 19.855469 23 23 19.855469 23 16 C 23 12.144531 19.855469 9 16 9 Z M 16 11 C 18.773438 11 21 13.226563 21 16 C 21 18.773438 18.773438 21 16 21 C 13.226563 21 11 18.773438 11 16 C 11 13.226563 13.226563 11 16 11 Z M 3 15 L 3 17 L 8 17 L 8 15 Z M 24 15 L 24 17 L 29 17 L 29 15 Z M 9.625 20.9375 L 6.09375 24.5 L 7.5 25.90625 L 11.0625 22.375 Z M 22.375 20.9375 L 20.9375 22.375 L 24.5 25.90625 L 25.90625 24.5 Z M 15 24 L 15 29 L 17 29 L 17 24 Z"/>
+        </symbol>
+        <symbol id="svg-icon-moon" viewBox="0 0 24 24">
+            <path d="M12.75 2.25A10.5 10.5 0 002.25 12.75 10.5 10.5 0 0012.75 23.25c.36 0 .71-.02 1.06-.05a8.258 8.258 0 01-2.56-6.45 8.25 8.25 0 018.25-8.25c2.39 0 4.5.97 6.01 2.56.03-.35.05-.7.05-1.06A10.5 10.5 0 0012.75 2.25z"/>
+        </symbol>
+        <symbol id="svg-icon-settings" viewBox="0 0 24 24">
+            <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/>
+                <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0-6 0"/>
+            </g>
+        </symbol>
+        <symbol id="svg-icon-back-arrow" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </symbol>
+    </svg>
+
+    <div class="container">
+        <div id="main-view">
+            <img id="lightmode-mock-image" src="lightmode.png" alt="Light Mode User" />
+            <h1>Microphone Volume Enforcer</h1>
+            <div class="header-bar-left">
+                <button id="settings-toggle-button" aria-label="Open Settings" tabindex="0">
+                    <svg class="theme-icon" id="settings-icon-instance" fill="currentColor" width="24px" height="24px" stroke="currentColor" aria-hidden="true"><use xlink:href="#svg-icon-settings"></use></svg>
+                </button>
+            </div>
+            <div class="header-bar-right">
+                <button id="theme-toggle-button" aria-label="Toggle theme" tabindex="0">
+                    <svg class="theme-icon" id="theme-icon-sun-instance" fill="currentColor" width="24px" height="24px" stroke="none" aria-hidden="true"><use xlink:href="#svg-icon-sun"></use></svg>
+                    <svg class="theme-icon" id="theme-icon-moon-instance" fill="currentColor" width="24px" height="24px" style="display:none;" aria-hidden="true"><use xlink:href="#svg-icon-moon"></use></svg>
+                </button>
+            </div>
+
+            <section class="control-section" id="device-section">
+                <h2>Device</h2>
+                <div class="form-group inline-group">
+                    <label for="microphone-select">Microphone:</label>
+                    <div class="select-wrapper">
+                        <select id="microphone-select">
+                            <option value="" disabled selected>Loading devices...</option>
+                        </select>
+                    </div>
+                    <button id="refresh-devices-button" class="button-small button-outline">Refresh</button>
+                </div>
+            </section>
+
+            <section class="control-section" id="level-section">
+                <h2>Level</h2>
+                <div class="form-group">
+                    <label for="volume-slider">Set Volume (<span id="volume-display">100%</span>):</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+                </div>
+                <div class="form-group">
+                    <label for="enforce-volume-checkbox" class="checkbox-label">
+                        <input type="checkbox" id="enforce-volume-checkbox">
+                        Enforce Volume
+                    </label>
+                </div>
+            </section>
+            
+            <div class="form-group action-group">
+                <button id="save-settings-button">Save Settings</button>
+            </div>
+            <div id="status-message" class="status" aria-live="polite" role="status">Status: Initializing...</div>
+        </div> <!-- End of #main-view -->
+
+        <div id="settings-view" style="display: none;">
+            <div class="header-bar page-header">
+                 <button id="back-to-main-button" aria-label="Back to Main Controls" tabindex="0">
+                    <svg class="theme-icon" width="24px" height="24px" aria-hidden="true"><use xlink:href="#svg-icon-back-arrow"></use></svg>
+                </button>
+                <h1 class="page-title">Settings</h1>
+            </div>
+            <!-- Former #settings-panel content moved here -->
+            <div class="control-section" style="margin-top: 1rem;">
+                <h2>Application Settings</h2>
+                <div class="form-group">
+                    <label for="start-with-windows-checkbox" class="checkbox-label">
+                        <input type="checkbox" id="start-with-windows-checkbox">
+                        Start with Windows
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="close-behavior-select">When clicking X:</label>
+                    <div class="select-wrapper">
+                        <select id="close-behavior-select">
+                            <option value="minimize">Minimize to tray</option>
+                            <option value="ask">Ask what to do</option>
+                            <option value="exit">Exit application</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="ask-once-group" style="display:none;">
+                    <label for="dont-ask-again-checkbox" class="checkbox-label">
+                        <input type="checkbox" id="dont-ask-again-checkbox">
+                        Don't ask again and remember my choice
+                    </label>
+                </div>
+            </div>
+        </div> <!-- End of #settings-view -->
+
+    </div>
+
+    <script src="main.js" defer></script>
+</body>
+</html> 
