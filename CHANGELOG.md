@@ -79,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Windows Forms**: Added for system tray functionality
 
 #### Platform Support
+- **Windows 7/8/8.1**: Take you 'Ol reliable somewhere else.
 - **Windows 10**: Minimum supported version
 - **Windows 11**: Fully supported and tested
 - **WebView2 Runtime**: Required (usually pre-installed) 
