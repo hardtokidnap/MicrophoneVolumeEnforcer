@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Notes
 
-#### Breaking Changes in 2.0.0
+#### Breaking Changes in 2.1.0
 - Complete rewrite requires fresh installation
 - Settings from 1.x versions are not compatible
 - Windows Service registration needs to be manually removed if upgrading
