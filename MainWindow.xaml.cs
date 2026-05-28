@@ -19,15 +19,87 @@ using System.Text.Json.Serialization;
 namespace MicrophoneVolumeEnforcer;
 
 // Helper class for deserializing settings
-public class AppSettings 
+public class AppSettings
 {
     public string? SelectedDevice { get; set; }
     public int TargetVolume { get; set; } = 100;
     public bool IsEnforced { get; set; } = false;
     public bool StartWithWindows { get; set; } = false;
+    public bool StartMinimized { get; set; } = false;
     public string CloseBehavior { get; set; } = "minimize"; // Default to minimize: "minimize", "ask", "exit"
     public bool DontAskAgain { get; set; } = false;
     public string? RememberedCloseAction { get; set; } // "minimize" or "exit"
+}
+
+// Single source of truth for settings.json I/O. Loaded synchronously at startup so MainWindow can honor StartMinimized before the window is shown.
+public static class AppSettingsStore
+{
+    private const string AppFolder = "MicrophoneVolumeEnforcer";
+    private const int MaxPayloadBytes = 32 * 1024;
+
+    public static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private static string SettingsPath =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            AppFolder,
+            "settings.json");
+
+    public static AppSettings LoadOrDefault()
+    {
+        try
+        {
+            string path = SettingsPath;
+            if (!File.Exists(path)) return new AppSettings();
+
+            var info = new FileInfo(path);
+            if (info.Length > MaxPayloadBytes) return new AppSettings();
+
+            string json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AppSettingsStore.LoadOrDefault failed: {ex.Message}");
+            return new AppSettings();
+        }
+    }
+
+    public static void Save(AppSettings settings)
+    {
+        SaveRaw(JsonSerializer.Serialize(settings, Options));
+    }
+
+    public static string? LoadRaw()
+    {
+        try
+        {
+            string path = SettingsPath;
+            if (!File.Exists(path)) return null;
+            var info = new FileInfo(path);
+            if (info.Length > MaxPayloadBytes) return null;
+            return File.ReadAllText(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AppSettingsStore.LoadRaw failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    public static void SaveRaw(string json)
+    {
+        if (string.IsNullOrEmpty(json) || json.Length > MaxPayloadBytes)
+            throw new InvalidOperationException("Settings payload too large.");
+
+        string path = SettingsPath;
+        string? dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        File.WriteAllText(path, json);
+    }
 }
 
 /// <summary>
@@ -45,6 +117,15 @@ public partial class MainWindow : Window
         InitializeComponent();
         InitializeAsync();
         SetupTrayIcon();
+
+        var initialSettings = AppSettingsStore.LoadOrDefault();
+        if (initialSettings.StartMinimized)
+        {
+            // Skip the tray-balloon on startup: the user explicitly asked to start hidden, so the
+            // "I'm in the tray now" balloon would be redundant noise.
+            _balloonShownThisSession = true;
+            WindowState = WindowState.Minimized;
+        }
     }
 
     private void SetupTrayIcon()
@@ -117,7 +198,7 @@ public partial class MainWindow : Window
                     try
                     {
                         _notifyIcon.ShowBalloonTip(5000, "Microphone Volume Enforcer", 
-                            "HEY YOU, i'm in the tray now and I'm still kicking. If you want to close me, you can right click → Exit or disable me in the settings.", 
+                            "Minimized to tray. Double-click the icon to restore. Right click the tray icon for more options.", 
                             ToolTipIcon.Info);
                         
                         _balloonShownThisSession = true; // Mark as shown for this session
@@ -137,29 +218,10 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_isExplicitlyClosing) 
+        if (!_isExplicitlyClosing)
         {
-            // Load current settings
-            string? settingsJson = new HostBridge(this).LoadSettingsInternal(); 
-            System.Diagnostics.Debug.WriteLine($"Raw settings JSON: {settingsJson ?? "NULL"}");
-            
-            if (!string.IsNullOrEmpty(settingsJson))
-            {
-                try { 
-                    var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                    _currentAppSettings = JsonSerializer.Deserialize<AppSettings>(settingsJson, options) ?? new AppSettings(); 
-                    System.Diagnostics.Debug.WriteLine($"Loaded settings: CloseBehavior='{_currentAppSettings.CloseBehavior}', DontAskAgain={_currentAppSettings.DontAskAgain}");
-                }
-                catch (Exception ex) { 
-                    System.Diagnostics.Debug.WriteLine($"Error deserializing settings: {ex.Message}");
-                    _currentAppSettings = new AppSettings(); 
-                }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("No settings found, using defaults");
-                _currentAppSettings = new AppSettings(); // Ensure defaults if no settings file
-            }
+            _currentAppSettings = AppSettingsStore.LoadOrDefault();
+            System.Diagnostics.Debug.WriteLine($"Loaded settings: CloseBehavior='{_currentAppSettings.CloseBehavior}', DontAskAgain={_currentAppSettings.DontAskAgain}");
 
             string actionToTake = _currentAppSettings.CloseBehavior;
             System.Diagnostics.Debug.WriteLine($"Initial actionToTake: '{actionToTake}'");
@@ -189,15 +251,13 @@ public partial class MainWindow : Window
                     {
                         _currentAppSettings.DontAskAgain = true;
                         _currentAppSettings.RememberedCloseAction = dialog.SelectedAction;
-                        // Save the updated settings
                         try
                         {
-                            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-                            string updatedSettingsJson = JsonSerializer.Serialize(_currentAppSettings, options);
-                            new HostBridge(this).SaveSettings(updatedSettingsJson);
+                            AppSettingsStore.Save(_currentAppSettings);
                             System.Diagnostics.Debug.WriteLine("Saved updated settings with remembered choice");
                         }
-                        catch (Exception ex) { 
+                        catch (Exception ex)
+                        {
                             System.Diagnostics.Debug.WriteLine($"Error saving settings: {ex.Message}");
                         }
                     }
@@ -381,16 +441,7 @@ public class HostBridge
     {
         try
         {
-            if (settingsJson == null || settingsJson.Length > 32 * 1024) // 32 KB guard
-            {
-                throw new InvalidOperationException("Settings payload too large.");
-            }
-
-            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string settingsDir = Path.Combine(appDataPath, AppNameForStartup); // Use constant
-            Directory.CreateDirectory(settingsDir); 
-            string settingsFile = Path.Combine(settingsDir, "settings.json");
-            File.WriteAllText(settingsFile, settingsJson);
+            AppSettingsStore.SaveRaw(settingsJson);
         }
         catch (Exception ex)
         {
@@ -400,15 +451,7 @@ public class HostBridge
 
     public string? LoadSettings()
     {
-        try
-        {
-            return LoadSettingsInternal(); // Use the internal method
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show($"[C# HostBridge] Error loading settings: {ex.Message}", "File Error", MessageBoxButton.OK, MessageBoxImage.Error); 
-            return null;
-        }
+        return AppSettingsStore.LoadRaw();
     }
 
     public void SetEnforcement(string deviceId, int volume, bool enable)
@@ -536,32 +579,6 @@ public class HostBridge
         {
             System.Windows.MessageBox.Show($"Error getting startup state: {ex.Message}", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
-        }
-    }
-
-    // Internal method for MainWindow to get raw JSON without JS involvement for OnClosing
-    // This avoids needing JS to be fully loaded if OnClosing is called early.
-    public string? LoadSettingsInternal() 
-    {
-        try
-        {
-            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string settingsDir = Path.Combine(appDataPath, AppNameForStartup);
-            string settingsFile = Path.Combine(settingsDir, "settings.json");
-            System.Diagnostics.Debug.WriteLine($"Settings file path: {settingsFile}");
-            if (File.Exists(settingsFile))
-            {
-                string content = File.ReadAllText(settingsFile);
-                System.Diagnostics.Debug.WriteLine($"Settings file content: {content}");
-                return content;
-            }
-            System.Diagnostics.Debug.WriteLine("Settings file does not exist");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error reading settings file: {ex.Message}");
-            return null; // Don't show MessageBox here, as it might be during shutdown
         }
     }
 

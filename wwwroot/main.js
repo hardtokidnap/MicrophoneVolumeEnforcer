@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBehaviorSelect = document.getElementById('close-behavior-select');
     const askOnceGroup = document.getElementById('ask-once-group');
     const startWithWindowsCheckbox = document.getElementById('start-with-windows-checkbox');
+    const startMinimizedCheckbox = document.getElementById('start-minimized-checkbox');
     const dontAskAgainCheckbox = document.getElementById('dont-ask-again-checkbox');
 
     let nativeHost = null;
@@ -210,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
             targetVolume: parseInt(volumeSlider.value),
             isEnforced: enforceCheckbox.checked,
             startWithWindows: startWithWindowsCheckbox.checked,
+            startMinimized: startMinimizedCheckbox ? startMinimizedCheckbox.checked : false,
             closeBehavior: closeBehaviorSelect.value,
             dontAskAgain: dontAskAgainCheckbox.checked,
         };
@@ -286,6 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (typeof settings.dontAskAgain === 'boolean' && dontAskAgainCheckbox) {
                 dontAskAgainCheckbox.checked = settings.dontAskAgain;
+            }
+            if (startMinimizedCheckbox) {
+                startMinimizedCheckbox.checked = settings.startMinimized === true;
             }
             
             // Only report full load if settings were actually processed
@@ -421,6 +426,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if(dontAskAgainCheckbox) {
         dontAskAgainCheckbox.addEventListener('change', saveSettings);
+    }
+    if (startMinimizedCheckbox) {
+        startMinimizedCheckbox.addEventListener('change', saveSettings);
     }
 
     // Function to apply theme based on 'data-theme' attribute
