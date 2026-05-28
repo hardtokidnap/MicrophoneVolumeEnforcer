@@ -314,11 +314,23 @@ public partial class MainWindow : Window
             "MicrophoneVolumeEnforcer", "WebView2");
         var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
         await webView.EnsureCoreWebView2Async(env);
-        // SECURITY HARDENING: Restrict WebView2 capabilities and navigation
+
+        // SECURITY HARDENING: a tray-resident WPF app does not need browser features. Disable
+        // everything that isn't the host bridge + our packaged page.
         var settings = webView.CoreWebView2.Settings;
-        settings.AreDevToolsEnabled = false; // Disable dev-tools in production
-        settings.AreDefaultContextMenusEnabled = false; // Disable default context menu
-        settings.AreDefaultScriptDialogsEnabled = false; // Disable alert/confirm/prompt
+        settings.AreDevToolsEnabled = false;
+        settings.AreDefaultContextMenusEnabled = false;
+        settings.AreDefaultScriptDialogsEnabled = false;
+        settings.AreBrowserAcceleratorKeysEnabled = false; // F12 / Ctrl+P / Ctrl+S / Ctrl+R
+        settings.IsStatusBarEnabled = false;
+        settings.IsZoomControlEnabled = false;
+        settings.IsPasswordAutosaveEnabled = false;
+        settings.IsGeneralAutofillEnabled = false;
+
+        // Drag-drop, popups, and downloads should not happen from the embedded UI.
+        webView.AllowExternalDrop = false;
+        webView.CoreWebView2.NewWindowRequested += (_, args) => args.Handled = true;
+        webView.CoreWebView2.DownloadStarting += (_, args) => args.Cancel = true;
 
         // Attach native host object. Field-stored so OnClosed can dispose the underlying CoreAudio state.
         _hostBridge = new HostBridge(this);
