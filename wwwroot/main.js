@@ -19,10 +19,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const askOnceGroup = document.getElementById('ask-once-group');
     const startWithWindowsCheckbox = document.getElementById('start-with-windows-checkbox');
     const startMinimizedCheckbox = document.getElementById('start-minimized-checkbox');
+    const enforceAllCheckbox = document.getElementById('enforce-all-checkbox');
     const dontAskAgainCheckbox = document.getElementById('dont-ask-again-checkbox');
 
     let nativeHost = null;
     let statusClearTimer = null;
+    // EnforceAll-mode UX: when the checkbox is on, the device dropdown is replaced with an "All microphones"
+    // placeholder. Stash the previously-real selection so unchecking restores it without a fresh device fetch.
+    let savedDeviceSelectionId = null;
+    const ALL_PLACEHOLDER = '__all__';
+
+    function applyEnforceAllUi(enforceAll) {
+        if (!microphoneSelect) return;
+        const hasPlaceholder = !!microphoneSelect.querySelector(`option[value="${ALL_PLACEHOLDER}"]`);
+        if (enforceAll) {
+            if (microphoneSelect.value && microphoneSelect.value !== ALL_PLACEHOLDER) {
+                savedDeviceSelectionId = microphoneSelect.value;
+            }
+            if (!hasPlaceholder) {
+                const opt = document.createElement('option');
+                opt.value = ALL_PLACEHOLDER;
+                opt.textContent = 'All microphones';
+                microphoneSelect.prepend(opt);
+            }
+            microphoneSelect.value = ALL_PLACEHOLDER;
+            microphoneSelect.disabled = true;
+        } else {
+            if (hasPlaceholder) {
+                microphoneSelect.querySelector(`option[value="${ALL_PLACEHOLDER}"]`).remove();
+            }
+            microphoneSelect.disabled = false;
+            if (savedDeviceSelectionId) {
+                microphoneSelect.value = savedDeviceSelectionId;
+            }
+        }
+    }
 
     // Debounce function
     function debounce(func, delay) {
@@ -110,14 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const debouncedVolumeUpdate = debounce((value) => {
         if (nativeHost && enforceCheckbox.checked) {
             const selectedDeviceId = microphoneSelect.value;
-            if (selectedDeviceId) {
-                // Call SetEnforcement to update backend immediately for responsiveness of enforcement state
-                // The C# side handles its own cooldown for actual volume setting during OnVolumeNotification
-                nativeHost.SetEnforcement(selectedDeviceId, parseInt(value), true)
-                    .then(() => {
-                        // We might not need a status update here if handleVolumeChange does it on 'change'
-                        // setStatus(`Enforcement target updated to ${value}% for ${selectedDeviceId}.`, 'info');
-                    })
+            const enforceAll = enforceAllCheckbox ? enforceAllCheckbox.checked : false;
+            if (selectedDeviceId || enforceAll) {
+                nativeHost.SetEnforcement(selectedDeviceId || '', parseInt(value), true, enforceAll)
                     .catch(error => {
                         console.error('Error updating enforcement target via C# (debounced): ', error);
                         setStatus(`Error updating enforcement target: ${error.message || error}`, 'error');
@@ -126,20 +152,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 250); // 250ms debounce delay, adjust as needed
 
-    // Original handleVolumeChange for the 'change' event (fires when user releases slider)
+    // 'change' event handler: fires when the user releases the slider
     async function handleVolumeChange() {
         const volume = volumeSlider.value;
-        // aria-valuenow is already updated by the 'input' event listener
         if (enforceCheckbox.checked && nativeHost) {
             const selectedDeviceId = microphoneSelect.value;
-            if (selectedDeviceId) {
+            const enforceAll = enforceAllCheckbox ? enforceAllCheckbox.checked : false;
+            if (selectedDeviceId || enforceAll) {
                 try {
-                    console.log(`JS: (commit) Enforcing volume for ${selectedDeviceId} to ${volume}%`);
-                    // This call to SetMicrophoneVolume is fine as it reflects final decision
-                    await nativeHost.SetMicrophoneVolume(selectedDeviceId, parseInt(volume));
-                    // Also ensure enforcement state is synced with this final volume
-                    await nativeHost.SetEnforcement(selectedDeviceId, parseInt(volume), true);
-                    setStatus(`Volume for ${selectedDeviceId} set to ${volume}%.`, 'success');
+                    // Skip the direct SetMicrophoneVolume call in enforce-all mode (the placeholder value
+                    // would just fail to resolve); SetEnforcement retargets every active device.
+                    if (!enforceAll && selectedDeviceId && selectedDeviceId !== ALL_PLACEHOLDER) {
+                        await nativeHost.SetMicrophoneVolume(selectedDeviceId, parseInt(volume));
+                    }
+                    await nativeHost.SetEnforcement(selectedDeviceId || '', parseInt(volume), true, enforceAll);
+                    const target = enforceAll ? 'all microphones' : selectedDeviceId;
+                    setStatus(`Volume for ${target} set to ${volume}%.`, 'success');
                 } catch (error) {
                     console.error('Error setting volume via C# (on change):', error);
                     setStatus(`Error setting volume: ${error.message || error}`, 'error');
@@ -151,20 +179,20 @@ document.addEventListener('DOMContentLoaded', () => {
     async function toggleEnforcement() {
         const selectedDeviceId = microphoneSelect.value;
         const volume = volumeSlider.value;
-        if (enforceCheckbox.checked && !selectedDeviceId) {
-            setStatus('Please select a microphone to enforce volume.', 'warning');
+        const enforceAll = enforceAllCheckbox ? enforceAllCheckbox.checked : false;
+        if (enforceCheckbox.checked && !selectedDeviceId && !enforceAll) {
+            setStatus('Please select a microphone to enforce volume, or enable "Enforce on all microphones" in Settings.', 'warning');
             enforceCheckbox.checked = false;
             return;
         }
-        if (nativeHost && selectedDeviceId) {
+        if (nativeHost) {
             try {
-                await nativeHost.SetEnforcement(selectedDeviceId, parseInt(volume), enforceCheckbox.checked);
+                await nativeHost.SetEnforcement(selectedDeviceId || '', parseInt(volume), enforceCheckbox.checked, enforceAll);
                 if (enforceCheckbox.checked) {
-                    console.log(`JS: Enforcement ON for ${selectedDeviceId} at ${volume}%`);
-                    setStatus(`Enforcement enabled for ${selectedDeviceId}.`, 'success');
+                    const target = enforceAll ? 'all microphones' : selectedDeviceId;
+                    setStatus(`Enforcement enabled for ${target}.`, 'success');
                 } else {
                     setStatus('Volume enforcement disabled.', 'info');
-                    console.log('JS: Enforcement OFF');
                 }
             } catch (error) {
                 console.error('Error toggling enforcement via C#:', error);
@@ -206,10 +234,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const enforceAll = enforceAllCheckbox ? enforceAllCheckbox.checked : true;
+        // Persist the real device ID when in enforce-all mode (placeholder doesn't carry useful state).
+        const persistedDeviceId = (enforceAll && microphoneSelect.value === ALL_PLACEHOLDER)
+            ? (savedDeviceSelectionId || '')
+            : microphoneSelect.value;
         const settings = {
-            selectedDevice: microphoneSelect.value,
+            selectedDevice: persistedDeviceId,
             targetVolume: parseInt(volumeSlider.value),
             isEnforced: enforceCheckbox.checked,
+            enforceAll: enforceAll,
             startWithWindows: startWithWindowsCheckbox.checked,
             startMinimized: startMinimizedCheckbox ? startMinimizedCheckbox.checked : false,
             closeBehavior: closeBehaviorSelect.value,
@@ -262,21 +296,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Apply other settings from JSON
-            if (settings.selectedDevice && microphoneSelect.options.length > 0) { 
+            if (settings.selectedDevice && microphoneSelect.options.length > 0) {
                 microphoneSelect.value = settings.selectedDevice;
+                savedDeviceSelectionId = settings.selectedDevice;
             }
             if (settings.targetVolume) {
                 volumeSlider.value = settings.targetVolume;
                 volumeDisplay.textContent = `${settings.targetVolume}%`;
                 volumeSlider.setAttribute('aria-valuenow', settings.targetVolume);
             }
+
+            // EnforceAll defaults to true for legacy settings files without the field.
+            const enforceAll = (typeof settings.enforceAll === 'boolean') ? settings.enforceAll : true;
+            if (enforceAllCheckbox) enforceAllCheckbox.checked = enforceAll;
+            applyEnforceAllUi(enforceAll);
+
             if (typeof settings.isEnforced === 'boolean') {
                 enforceCheckbox.checked = settings.isEnforced;
-                if (nativeHost && settings.selectedDevice && settings.targetVolume) {
+                if (nativeHost && (enforceAll || settings.selectedDevice) && settings.targetVolume) {
                     try {
-                        await nativeHost.SetEnforcement(settings.selectedDevice, parseInt(settings.targetVolume), settings.isEnforced);
-                        // Simplified status messages based on previous edits
-                        setStatus(settings.isEnforced ? `Enforcement for ${settings.selectedDevice} re-initiated.` : `Enforcement off for ${settings.selectedDevice}.`, 'info');
+                        await nativeHost.SetEnforcement(settings.selectedDevice || '', parseInt(settings.targetVolume), settings.isEnforced, enforceAll);
+                        const target = enforceAll ? 'all microphones' : settings.selectedDevice;
+                        setStatus(settings.isEnforced ? `Enforcement for ${target} re-initiated.` : `Enforcement off for ${target}.`, 'info');
                     } catch (error) {
                         setStatus(`Error syncing enforcement: ${error.message || error}`, 'error');
                     }
@@ -387,13 +428,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if(microphoneSelect) {
         microphoneSelect.addEventListener('change', () => {
-            if(enforceCheckbox.checked) {
-                if (nativeHost) {
-                    nativeHost.SetEnforcement(microphoneSelect.value, parseInt(volumeSlider.value), true);
-                }
-                handleVolumeChange(); 
+            if (microphoneSelect.value && microphoneSelect.value !== ALL_PLACEHOLDER) {
+                savedDeviceSelectionId = microphoneSelect.value;
             }
-            saveSettings(); // Auto-save when microphone selection changes
+            if (enforceCheckbox.checked) {
+                const enforceAll = enforceAllCheckbox ? enforceAllCheckbox.checked : false;
+                if (nativeHost) {
+                    nativeHost.SetEnforcement(microphoneSelect.value || '', parseInt(volumeSlider.value), true, enforceAll);
+                }
+                handleVolumeChange();
+            }
+            saveSettings();
+        });
+    }
+
+    if (enforceAllCheckbox) {
+        enforceAllCheckbox.addEventListener('change', async () => {
+            const enforceAll = enforceAllCheckbox.checked;
+            applyEnforceAllUi(enforceAll);
+            if (nativeHost && enforceCheckbox.checked) {
+                try {
+                    const deviceId = enforceAll ? '' : (savedDeviceSelectionId || microphoneSelect.value || '');
+                    await nativeHost.SetEnforcement(deviceId, parseInt(volumeSlider.value), true, enforceAll);
+                    setStatus(enforceAll ? 'Enforcement now applies to all microphones.' : `Enforcement now applies only to ${deviceId || 'the selected microphone'}.`, 'info');
+                } catch (error) {
+                    console.error('Error switching enforce-all mode:', error);
+                    setStatus(`Error switching enforce-all mode: ${error.message || error}`, 'error');
+                }
+            }
+            saveSettings();
         });
     }
 

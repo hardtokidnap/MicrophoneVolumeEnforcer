@@ -26,6 +26,7 @@ public class AppSettings
     public bool IsEnforced { get; set; } = false;
     public bool StartWithWindows { get; set; } = false;
     public bool StartMinimized { get; set; } = false;
+    public bool EnforceAllDevices { get; set; } = true;
     public string CloseBehavior { get; set; } = "minimize"; // Default to minimize: "minimize", "ask", "exit"
     public bool DontAskAgain { get; set; } = false;
     public string? RememberedCloseAction { get; set; } // "minimize" or "exit"
@@ -349,14 +350,38 @@ public class HostBridge
     private readonly SynchronizationContext? _syncContext; 
     private const string AppNameForStartup = "MicrophoneVolumeEnforcer"; // Name for registry key
 
-    private MMDevice? _enforcedDevice = null;
-    private AudioEndpointVolume? _audioEndpointVolume = null;
+    // Per-device enforcement context. One instance lives in _enforced per actively-enforced capture endpoint.
+    private sealed class EnforcedDevice : IDisposable
+    {
+        public required MMDevice Device { get; init; }
+        public required AudioEndpointVolume Volume { get; init; }
+        public required AudioEndpointVolumeNotificationDelegate Handler { get; init; }
+        public required System.Threading.Timer Timer { get; init; }
+        public bool PendingChange;
+
+        public void Dispose()
+        {
+            // COM objects may already be torn down by Windows when we hit this during app shutdown
+            // or device unplug; swallow but log so a real crash here isn't silent.
+            try { Volume.OnVolumeNotification -= Handler; }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"EnforcedDevice.Dispose: detach handler failed for {Device.ID}: {ex.Message}"); }
+            try { Timer.Dispose(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"EnforcedDevice.Dispose: timer dispose failed for {Device.ID}: {ex.Message}"); }
+            try { Device.Dispose(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"EnforcedDevice.Dispose: device dispose failed: {ex.Message}"); }
+        }
+    }
+
+    private readonly Dictionary<string, EnforcedDevice> _enforced = new(); // key = MMDevice.ID
     private bool _isEnforcementEnabled = false;
-    private float _targetVolume = 1.0f; 
-    private AudioEndpointVolumeNotificationDelegate? _volumeNotificationHandler = null;
-    private System.Threading.Timer? _enforcementTimer; // Fully qualify Timer
-    private bool _volumeHasBeenChangedDuringCooldown = false;
-    private readonly TimeSpan _enforcementGracePeriod = TimeSpan.FromSeconds(1); 
+    private bool _enforceAll = true;
+    private float _targetVolume = 1.0f;
+    private string? _singleSelectedDeviceFriendlyName; // single-device mode only; will become MMDevice.ID in Milestone 3
+    private System.Threading.Timer? _deviceReconcileTimer;
+    private readonly TimeSpan _enforcementGracePeriod = TimeSpan.FromSeconds(1);
+    // CoreAudio 1.40.0 keeps RegisterEndpointNotificationCallback internal so we cannot subscribe to device add/remove events.
+    // Poll the enumerator every 2 seconds while EnforceAll is on; CPU cost negligible, hot-plug latency <= 2s.
+    private readonly TimeSpan _reconcileInterval = TimeSpan.FromSeconds(2);
 
     public HostBridge(MainWindow mainWindow)
     {
@@ -416,10 +441,6 @@ public class HostBridge
                 if (device.AudioEndpointVolume != null)
                 {
                     device.AudioEndpointVolume.MasterVolumeLevelScalar = volumeScalar;
-                    if (_isEnforcementEnabled && _enforcedDevice != null && _enforcedDevice.ID == device.ID)
-                    {
-                        _targetVolume = volumeScalar;
-                    }
                 }
                 else
                 {
@@ -454,78 +475,235 @@ public class HostBridge
         return AppSettingsStore.LoadRaw();
     }
 
-    public void SetEnforcement(string deviceId, int volume, bool enable)
+    public void SetEnforcement(string deviceId, int volume, bool enable, bool enforceAll)
     {
-        if (_audioEndpointVolume != null && _volumeNotificationHandler != null)
-        {
-            _audioEndpointVolume.OnVolumeNotification -= _volumeNotificationHandler;
-        }
         _isEnforcementEnabled = enable;
-        _targetVolume = volume / 100.0f;
-        if (_targetVolume < 0.0f) _targetVolume = 0.0f;
-        if (_targetVolume > 1.0f) _targetVolume = 1.0f;
-        _enforcedDevice = null;
-        _audioEndpointVolume = null;
-        _volumeNotificationHandler = null;
-        _volumeHasBeenChangedDuringCooldown = false;
+        _enforceAll = enforceAll;
 
-        _enforcementTimer?.Dispose();
-        _enforcementTimer = null;
+        float clamped = volume / 100.0f;
+        if (clamped < 0.0f) clamped = 0.0f;
+        if (clamped > 1.0f) clamped = 1.0f;
+        _targetVolume = clamped;
+        _singleSelectedDeviceFriendlyName = string.IsNullOrEmpty(deviceId) ? null : deviceId;
 
-        if (enable)
+        if (!enable)
         {
-            _staticDeviceEnumerator ??= new MMDeviceEnumerator();
-            var enumerator = _staticDeviceEnumerator;
-            if (!IsValidDeviceName(deviceId))
-            {
-                System.Windows.MessageBox.Show("Invalid device identifier provided.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            var device = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
-                                   .FirstOrDefault(d => d.DeviceFriendlyName == deviceId);
-            if (device != null && device.AudioEndpointVolume != null)
-            {
-                _enforcedDevice = device;
-                _audioEndpointVolume = device.AudioEndpointVolume;
-                _audioEndpointVolume.MasterVolumeLevelScalar = _targetVolume;
-                _volumeNotificationHandler = new AudioEndpointVolumeNotificationDelegate(OnVolumeNotification);
-                _audioEndpointVolume.OnVolumeNotification += _volumeNotificationHandler;
-                _enforcementTimer = new System.Threading.Timer(ForceEnforceVolumeAfterCooldown, null, System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
-            }
+            StopReconcileTimer();
+            DetachAll();
+            return;
         }
+
+        if (enforceAll)
+        {
+            AttachAllActiveDevices();
+            StartReconcileTimer();
+        }
+        else
+        {
+            StopReconcileTimer();
+            AttachOnlySelectedDevice(deviceId);
+        }
+
+        RetargetAllToCurrentVolume();
     }
 
-    private void OnVolumeNotification(AudioVolumeNotificationData data)
+    private void AttachAllActiveDevices()
     {
-        if (_isEnforcementEnabled && 
-            _audioEndpointVolume != null && 
-            Math.Abs(data.MasterVolume - _targetVolume) > 0.01f)
+        _staticDeviceEnumerator ??= new MMDeviceEnumerator();
+        MMDevice[] devices;
+        try
         {
-            _syncContext?.Post(_ => 
+            devices = _staticDeviceEnumerator
+                .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AttachAllActiveDevices: enumerate failed: {ex.Message}");
+            return;
+        }
+
+        foreach (var dev in devices)
+        {
+            if (_enforced.ContainsKey(dev.ID))
             {
-                _volumeHasBeenChangedDuringCooldown = true;
-                _enforcementTimer?.Change(_enforcementGracePeriod, System.Threading.Timeout.InfiniteTimeSpan);
-                System.Diagnostics.Debug.WriteLine($"[{DateTime.UtcNow}] Volume change detected for {_enforcedDevice?.DeviceFriendlyName}. Grace period timer (re)started on UI thread.");
-            }, null);
+                dev.Dispose();
+                continue;
+            }
+            AttachEnforcement(dev);
         }
     }
 
-    private void ForceEnforceVolumeAfterCooldown(object? state)
+    private void AttachOnlySelectedDevice(string deviceFriendlyName)
+    {
+        _staticDeviceEnumerator ??= new MMDeviceEnumerator();
+        if (!IsValidDeviceName(deviceFriendlyName))
+        {
+            DetachAll();
+            return;
+        }
+
+        MMDevice? target;
+        try
+        {
+            target = _staticDeviceEnumerator
+                .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                .FirstOrDefault(d => d.DeviceFriendlyName == deviceFriendlyName);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AttachOnlySelectedDevice: lookup failed: {ex.Message}");
+            return;
+        }
+
+        string? targetId = target?.ID;
+
+        foreach (var id in _enforced.Keys.Where(k => k != targetId).ToList())
+            DetachEnforcement(id);
+
+        if (target == null) return;
+
+        if (_enforced.ContainsKey(target.ID))
+            target.Dispose();
+        else
+            AttachEnforcement(target);
+    }
+
+    private void AttachEnforcement(MMDevice device)
+    {
+        if (_enforced.ContainsKey(device.ID))
+        {
+            device.Dispose();
+            return;
+        }
+
+        var endpointVolume = device.AudioEndpointVolume;
+        if (endpointVolume == null)
+        {
+            device.Dispose();
+            return;
+        }
+
+        string deviceId = device.ID;
+        var handler = new AudioEndpointVolumeNotificationDelegate(data => OnDeviceVolumeChanged(deviceId, data));
+        var timer = new System.Threading.Timer(
+            _ => ForceEnforceVolume(deviceId), null,
+            System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
+
+        try { endpointVolume.MasterVolumeLevelScalar = _targetVolume; }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AttachEnforcement: initial set failed for {deviceId}: {ex.Message}");
+        }
+        endpointVolume.OnVolumeNotification += handler;
+
+        _enforced[deviceId] = new EnforcedDevice
+        {
+            Device = device,
+            Volume = endpointVolume,
+            Handler = handler,
+            Timer = timer,
+        };
+    }
+
+    private void DetachEnforcement(string deviceId)
+    {
+        if (_enforced.Remove(deviceId, out var ctx)) ctx.Dispose();
+    }
+
+    private void DetachAll()
+    {
+        foreach (var ctx in _enforced.Values) ctx.Dispose();
+        _enforced.Clear();
+    }
+
+    private void RetargetAllToCurrentVolume()
+    {
+        foreach (var ctx in _enforced.Values)
+        {
+            try { ctx.Volume.MasterVolumeLevelScalar = _targetVolume; }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RetargetAllToCurrentVolume failed for {ctx.Device.ID}: {ex.Message}");
+            }
+        }
+    }
+
+    private void StartReconcileTimer()
+    {
+        if (_deviceReconcileTimer != null) return;
+        _deviceReconcileTimer = new System.Threading.Timer(
+            ReconcileEnforceAll, null,
+            _reconcileInterval, _reconcileInterval);
+    }
+
+    private void StopReconcileTimer()
+    {
+        _deviceReconcileTimer?.Dispose();
+        _deviceReconcileTimer = null;
+    }
+
+    private void ReconcileEnforceAll(object? state)
     {
         _syncContext?.Post(_ =>
         {
-            if (_isEnforcementEnabled && _volumeHasBeenChangedDuringCooldown && _audioEndpointVolume != null)
+            if (!_isEnforcementEnabled || !_enforceAll) return;
+            _staticDeviceEnumerator ??= new MMDeviceEnumerator();
+            try
             {
-                try
+                var current = _staticDeviceEnumerator
+                    .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                    .ToDictionary(d => d.ID);
+
+                foreach (var pair in current)
                 {
-                    _audioEndpointVolume.MasterVolumeLevelScalar = _targetVolume;
-                    _volumeHasBeenChangedDuringCooldown = false; 
-                    System.Diagnostics.Debug.WriteLine($"[{DateTime.UtcNow}] Enforced volume for {_enforcedDevice?.DeviceFriendlyName} after grace period on UI thread.");
+                    if (!_enforced.ContainsKey(pair.Key))
+                        AttachEnforcement(pair.Value);
+                    else
+                        pair.Value.Dispose();
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[{DateTime.UtcNow}] Error enforcing volume after grace period on UI thread: {ex.Message}");
-                }
+
+                foreach (var goneId in _enforced.Keys.Where(k => !current.ContainsKey(k)).ToList())
+                    DetachEnforcement(goneId);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ReconcileEnforceAll failed: {ex.Message}");
+            }
+        }, null);
+    }
+
+    private void OnDeviceVolumeChanged(string deviceId, AudioVolumeNotificationData data)
+    {
+        // COM-thread early-out: skip if we don't need to do anything. _isEnforcementEnabled is a bool and
+        // _targetVolume is a float; reads from another thread are atomic on x64, so this race is benign.
+        if (!_isEnforcementEnabled) return;
+        if (Math.Abs(data.MasterVolume - _targetVolume) <= 0.01f) return;
+
+        _syncContext?.Post(_ =>
+        {
+            if (!_isEnforcementEnabled) return;
+            if (!_enforced.TryGetValue(deviceId, out var ctx)) return;
+            ctx.PendingChange = true;
+            ctx.Timer.Change(_enforcementGracePeriod, System.Threading.Timeout.InfiniteTimeSpan);
+        }, null);
+    }
+
+    private void ForceEnforceVolume(string deviceId)
+    {
+        _syncContext?.Post(_ =>
+        {
+            if (!_isEnforcementEnabled) return;
+            if (!_enforced.TryGetValue(deviceId, out var ctx)) return;
+            if (!ctx.PendingChange) return;
+            try
+            {
+                ctx.Volume.MasterVolumeLevelScalar = _targetVolume;
+                ctx.PendingChange = false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ForceEnforceVolume failed for {deviceId}: {ex.Message}");
             }
         }, null);
     }
