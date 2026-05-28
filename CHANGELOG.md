@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-05-28
 
 ### Added
 - **Start minimized to tray**: new setting (off by default) for users who launch the app at Windows startup and don't want the window popping up every login.
 - **Enforce on all microphones**: new setting (on by default) extends volume enforcement to every active capture endpoint, not just the selected one. Newly plugged microphones join enforcement within ~2 seconds; unplugged ones drop cleanly.
+- **Automated release pipeline**: tag-triggered GitHub Actions workflow builds the installer and publishes a release.
 
 ### Changed
 - Target framework upgraded from .NET 8.0 to .NET 10.0 (LTS, supported until November 2028).
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - WebView2 user data folder is now scoped under `%LOCALAPPDATA%` rather than the shared `%TEMP%` directory.
 - Device identifier validation tightened to handle CoreAudio's `{guid}.{guid}` ID format.
+- WebView2 surface hardened further: browser accelerator keys (F12 / Ctrl+P / Ctrl+S / Ctrl+R), drag-drop of external files, popup windows via `window.open()`, file downloads, password autosave, and form autofill are all disabled.
 
 ## [Released 2.1.0] - 2025-06-04
 

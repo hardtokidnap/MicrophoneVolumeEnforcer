@@ -1,8 +1,8 @@
 [Setup]
 AppId={{8B2E4F5A-9C3D-4E6F-8A1B-2C5D7E9F1A3B}
 AppName=Microphone Volume Enforcer
-AppVersion=2.1.0
-AppVerName=Microphone Volume Enforcer 2.1.0
+AppVersion=2.2.0
+AppVerName=Microphone Volume Enforcer 2.2.0
 AppPublisher=Hardtokidnap
 AppPublisherURL=https://github.com/hardtokidnap
 AppSupportURL=https://github.com/hardtokidnap/MicrophoneVolumeEnforcer
