@@ -25,7 +25,7 @@ MinVersion=10.0.17763
 UninstallDisplayIcon={app}\MicrophoneVolumeEnforcer.exe
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nIMPORTANT: This application requires .NET 8.0 Runtime and WebView2 Runtime. The installer will check for these components and guide you through installation if needed.%n%nIt is recommended that you close all other applications before continuing.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nIMPORTANT: This application requires .NET 10.0 Desktop Runtime and WebView2 Runtime. The installer will check for these components and guide you through installation if needed.%n%nIt is recommended that you close all other applications before continuing.
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -36,7 +36,7 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 Name: "startupicon"; Description: "Launch at Windows startup"; GroupDescription: "Startup Options"; Flags: unchecked
 
 [Files]
-Source: "bin\Release\net8.0-windows\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "bin\Release\net10.0-windows\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -56,12 +56,12 @@ Type: files; Name: "{userappdata}\MicrophoneVolumeEnforcer\settings.json"
 Type: dirifempty; Name: "{userappdata}\MicrophoneVolumeEnforcer"
 
 [Code]
-function IsDotNet8Installed(): Boolean;
+function IsDotNet10Installed(): Boolean;
 var
   ResultCode: Integer;
 begin
-  // Check if .NET 8.0 Runtime is installed using dotnet --list-runtimes
-  Result := Exec('cmd', '/c dotnet --list-runtimes | findstr "Microsoft.WindowsDesktop.App 8."', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  // dotnet --list-runtimes returns one line per installed runtime; match the desktop runtime major version.
+  Result := Exec('cmd', '/c dotnet --list-runtimes | findstr "Microsoft.WindowsDesktop.App 10."', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
 function IsWebView2Installed(): Boolean;
@@ -82,10 +82,10 @@ begin
   Result := True;
   MissingComponents := '';
   
-  // Check for .NET 8.0 Runtime
-  if not IsDotNet8Installed() then
+  // Check for .NET 10.0 Desktop Runtime
+  if not IsDotNet10Installed() then
   begin
-    MissingComponents := MissingComponents + '• .NET 8.0 Desktop Runtime' + #13#10;
+    MissingComponents := MissingComponents + '• .NET 10.0 Desktop Runtime' + #13#10;
   end;
   
   // Check for WebView2 Runtime  
@@ -107,9 +107,9 @@ begin
       IDYES:
         begin
           // Open download pages
-          if not IsDotNet8Installed() then
+          if not IsDotNet10Installed() then
           begin
-            ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet/8.0', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+            ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet/10.0', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
           end;
           
           if not IsWebView2Installed() then

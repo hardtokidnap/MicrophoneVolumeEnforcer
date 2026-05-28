@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Target framework upgraded from .NET 8.0 to .NET 10.0 (LTS, supported until November 2028).
+- WebView2 SDK upgraded from 1.0.2210.55 to 1.0.3967.48.
+- Installer prerequisite check updated to detect .NET 10.0 Desktop Runtime; download link points at the .NET 10 download page.
+
 ## [Released 2.1.0] - 2025-06-04
 
 ### Added

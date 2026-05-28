@@ -35,12 +35,12 @@ Yes, i had AI improve the readme. i was tired and i had a huge need for a toilet
 
 ### Prerequisites
 - Windows 10/11
-- .NET 8.0 Runtime
+- .NET 10.0 Runtime
 - WebView2 Runtime (usually pre-installed on modern Windows)
 
 ### Running from Source
 1. Clone the repository
-2. Ensure you have .NET 8.0 SDK installed
+2. Ensure you have .NET 10.0 SDK installed
 3. Run the application:
    ```bash
    dotnet run
@@ -68,7 +68,7 @@ The installer will be created as `installer\MicrophoneVolumeEnforcer-Setup.exe` 
 - ✅ **Lightweight** (~10-15 MB with LZMA compression)
 - ✅ **No admin privileges required** (user-level install)
 - ✅ **Modern UI** with proper uninstall support
-- ✅ **Automatic prerequisite checking** for .NET 8.0 and WebView2
+- ✅ **Automatic prerequisite checking** for .NET 10.0 and WebView2
 - ✅ **Guided dependency installation** with direct download links
 - ✅ **Smart detection** of missing system components
 
@@ -136,42 +136,7 @@ This application follows standard C# and web development practices. Key areas fo
 
 ## License
 
-**BSD 3-Clause License**
-
-Copyright (c) 2025, Hardtokidnap
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. **Redistributions of source code** must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. **Redistributions in binary form** must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. **Neither the name of the copyright holder nor the names of its contributors**
-   may be used to endorse or promote products derived from this software
-   without specific prior written permission.
-
-**THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.**
-
-### What This Means:
-- ✅ **Free to use, modify, and redistribute**
-- ✅ **Commercial use allowed**
-- ✅ **Must preserve copyright notice and license**
-- ✅ **Must credit original author (https://github.com/hardtokidnap)**
-- ❌ **Cannot use author's name to endorse derivatives**
+See [LICENSE.md](LICENSE.md)
 
 ## Changelog
 
@@ -186,18 +151,18 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed version history and changes.
 ### Minimum Requirements
 - **Operating System**: Windows 10 (Build 17763) or Windows 11
 - **Architecture**: 64-bit (x64) systems only
-- **.NET Runtime**: .NET 8.0 Desktop Runtime
+- **.NET Runtime**: .NET 10.0 Desktop Runtime
 - **WebView2**: Microsoft Edge WebView2 Runtime
 - **Disk Space**: ~50 MB free space
 - **Memory**: 100 MB RAM
 
 ### Automatic Dependency Checking
 The installer automatically checks for required components and will:
-- ✅ **Detect missing .NET 8.0 Runtime** and provide download links
+- ✅ **Detect missing .NET 10.0 Runtime** and provide download links
 - ✅ **Detect missing WebView2 Runtime** and provide download links  
 - ✅ **Guide you through the installation process** with helpful dialogs
 - ✅ **Allow you to continue anyway** if you prefer to install dependencies later
 
-> **Note**: Most Windows 10/11 systems already have WebView2 pre-installed. .NET 8.0 Runtime may need to be downloaded for first-time installations.
+> **Note**: Most Windows 10/11 systems already have WebView2 pre-installed. .NET 10.0 Runtime may need to be downloaded for first-time installations.
 
 ## Key Features
