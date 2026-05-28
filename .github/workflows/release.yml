@@ -48,6 +48,22 @@ jobs:
           $size = [math]::Round((Get-Item $artifact).Length / 1MB, 2)
           Write-Host "Installer size: $size MB"
 
+      - name: Extract release notes from CHANGELOG
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $content = Get-Content CHANGELOG.md -Raw
+          # Capture body between this version's header and the next "## [" header (or end of file).
+          $pattern = "(?ms)^## \[$([regex]::Escape($version))\][^\n]*\r?\n(.*?)(?=^## \[|\z)"
+          if ($content -match $pattern) {
+            $notes = $matches[1].Trim()
+            Write-Host "Extracted $($notes.Length) chars of release notes for version $version"
+          } else {
+            Write-Warning "No CHANGELOG section found for version $version, falling back to a stub"
+            $notes = "Release $version."
+          }
+          $notes | Out-File -FilePath release-notes.md -Encoding utf8 -NoNewline
+
       - name: Create GitHub Release
         shell: pwsh
         env:
@@ -56,4 +72,4 @@ jobs:
           gh release create ${{ github.ref_name }} `
             "installer\MicrophoneVolumeEnforcer-Setup.exe" `
             --title "Microphone Volume Enforcer ${{ github.ref_name }}" `
-            --generate-notes
+            --notes-file release-notes.md
