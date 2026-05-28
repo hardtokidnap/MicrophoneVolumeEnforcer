@@ -17,7 +17,7 @@ Runtime prerequisites the installer checks for:
 
 - Watches the volume on every active capture endpoint and resets it to your target within ~1 second whenever something else changes it.
 - **Enforce on all microphones** (default ON): one slider value applies to every active capture device. New mics plugged in mid-session join within ~2 seconds; unplugged ones drop cleanly.
-- **Start minimized to tray**: launch hidden, useful when paired with "Start with Windows".
+- **Start minimized to tray**: launch hidden. Set this with "Start with Windows" if you don't want the window popping up every login.
 - Tray-resident with a configurable close behavior (minimize, exit, ask).
 - Dark / light theme, `Alt+T` to toggle.
 
@@ -33,7 +33,7 @@ dotnet publish -c Release -r win-x64 --self-contained false  # framework-depende
 
 Requires the .NET 10 SDK (`global.json` pins 10.0.204). Inno Setup 6 is needed for the installer script.
 
-## Where files live
+## File locations
 
 | What | Where |
 |---|---|
@@ -53,9 +53,9 @@ WebView2 surface is locked down: DevTools, default context menu, script dialogs,
 
 ## Troubleshooting
 
-- **Dropdown is empty / disabled** — if "Enforce on all microphones" is on, the dropdown is intentionally disabled and shows "All microphones". Untick the setting to pick one specific device.
-- **Doesn't catch up to mid-call volume changes** — drift detection has a 1-second grace period to avoid fighting the user. If the volume keeps drifting back, check that the device shows as "Active" in Windows Sound Settings.
-- **Doesn't start with Windows** — toggle "Start with Windows" off and on again in Settings to refresh the registry entry.
+- **Dropdown is empty or disabled**: if "Enforce on all microphones" is on, the dropdown stays disabled and shows "All microphones". Untick the setting to pick one device.
+- **Volume keeps drifting back during a call**: drift detection has a 1-second grace period so it doesn't fight you on small tweaks. If something else is winning, check that the device shows as "Active" in Windows Sound Settings.
+- **Doesn't start with Windows**: toggle "Start with Windows" off and on again in Settings to refresh the registry entry.
 
 ## Releases
 
