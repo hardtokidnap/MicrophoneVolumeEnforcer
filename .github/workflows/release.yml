@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore MicrophoneVolumeEnforcer.csproj
+
+      - name: Publish app
+        shell: pwsh
+        run: dotnet publish MicrophoneVolumeEnforcer.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -o "bin\Release\net10.0-windows"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+          & $iscc MicrophoneVolumeEnforcer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed with exit code $LASTEXITCODE" }
+
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $artifact = "installer\MicrophoneVolumeEnforcer-Setup.exe"
+          if (-not (Test-Path $artifact)) { throw "Installer not produced at $artifact" }
+          $size = [math]::Round((Get-Item $artifact).Length / 1MB, 2)
+          Write-Host "Installer size: $size MB"
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} `
+            "installer\MicrophoneVolumeEnforcer-Setup.exe" `
+            --title "Microphone Volume Enforcer ${{ github.ref_name }}" `
+            --generate-notes
