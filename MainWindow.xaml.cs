@@ -27,21 +27,26 @@ public class AppSettings
     public bool StartWithWindows { get; set; } = false;
     public bool StartMinimized { get; set; } = false;
     public bool EnforceAllDevices { get; set; } = true;
-    public string CloseBehavior { get; set; } = "minimize"; // Default to minimize: "minimize", "ask", "exit"
+    public string CloseBehavior { get; set; } = "minimize"; // "minimize" | "ask" | "exit"
     public bool DontAskAgain { get; set; } = false;
-    public string? RememberedCloseAction { get; set; } // "minimize" or "exit"
+    public string? RememberedCloseAction { get; set; } // "minimize" | "exit"
 }
+
+// DTO returned to JS so the dropdown can display a friendly name while keeping a stable MMDevice ID as the value.
+public sealed record MicrophoneDeviceInfo(string Id, string Name);
+
+// System.Text.Json source generation. Avoids reflection at runtime; small startup-time win.
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(MicrophoneDeviceInfo))]
+[JsonSerializable(typeof(MicrophoneDeviceInfo[]))]
+internal partial class AppJsonContext : JsonSerializerContext;
 
 // Single source of truth for settings.json I/O. Loaded synchronously at startup so MainWindow can honor StartMinimized before the window is shown.
 public static class AppSettingsStore
 {
     private const string AppFolder = "MicrophoneVolumeEnforcer";
     private const int MaxPayloadBytes = 32 * 1024;
-
-    public static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
 
     private static string SettingsPath =>
         Path.Combine(
@@ -60,7 +65,9 @@ public static class AppSettingsStore
             if (info.Length > MaxPayloadBytes) return new AppSettings();
 
             string json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize(json, AppJsonContext.Default.AppSettings) ?? new AppSettings();
+            MigrateSelectedDeviceIfNeeded(settings);
+            return settings;
         }
         catch (Exception ex)
         {
@@ -71,7 +78,33 @@ public static class AppSettingsStore
 
     public static void Save(AppSettings settings)
     {
-        SaveRaw(JsonSerializer.Serialize(settings, Options));
+        SaveRaw(JsonSerializer.Serialize(settings, AppJsonContext.Default.AppSettings));
+    }
+
+    // Pre-2.2.0 settings stored DeviceFriendlyName under selectedDevice. CoreAudio device IDs always start
+    // with '{', so anything that doesn't is treated as a legacy friendly name; we resolve once and rewrite.
+    // If the mic is unplugged at startup, the rewrite is skipped and we'll retry on the next launch.
+    private static void MigrateSelectedDeviceIfNeeded(AppSettings settings)
+    {
+        if (string.IsNullOrEmpty(settings.SelectedDevice)) return;
+        if (settings.SelectedDevice.StartsWith('{')) return;
+
+        try
+        {
+            var enumerator = new MMDeviceEnumerator();
+            var match = enumerator
+                .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                .FirstOrDefault(d => d.DeviceFriendlyName == settings.SelectedDevice);
+            if (match != null)
+            {
+                settings.SelectedDevice = match.ID;
+                SaveRaw(JsonSerializer.Serialize(settings, AppJsonContext.Default.AppSettings));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"MigrateSelectedDeviceIfNeeded failed: {ex.Message}");
+        }
     }
 
     public static string? LoadRaw()
@@ -112,6 +145,7 @@ public partial class MainWindow : Window
     private bool _isExplicitlyClosing = false; // To track if exit is from tray menu
     private AppSettings _currentAppSettings = new AppSettings(); // Hold current settings
     private bool _balloonShownThisSession = false; // Track if balloon notification has been shown this session
+    private HostBridge? _hostBridge;
 
     public MainWindow()
     {
@@ -202,14 +236,12 @@ public partial class MainWindow : Window
                             "Minimized to tray. Double-click the icon to restore. Right click the tray icon for more options.", 
                             ToolTipIcon.Info);
                         
-                        _balloonShownThisSession = true; // Mark as shown for this session
-                        
-                        // Debug output to verify the method is called
-                      //  System.Diagnostics.Debug.WriteLine("Balloon tip shown at: " + DateTime.Now);
-                     }
-                     catch (Exception)
-                     {
-                     }
+                        _balloonShownThisSession = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Balloon tip failed: {ex.Message}");
+                    }
                 }
             }
             ShowInTaskbar = false;
@@ -222,57 +254,37 @@ public partial class MainWindow : Window
         if (!_isExplicitlyClosing)
         {
             _currentAppSettings = AppSettingsStore.LoadOrDefault();
-            System.Diagnostics.Debug.WriteLine($"Loaded settings: CloseBehavior='{_currentAppSettings.CloseBehavior}', DontAskAgain={_currentAppSettings.DontAskAgain}");
 
             string actionToTake = _currentAppSettings.CloseBehavior;
-            System.Diagnostics.Debug.WriteLine($"Initial actionToTake: '{actionToTake}'");
 
-            // Check if user previously chose "don't ask again" 
             if (_currentAppSettings.CloseBehavior == "ask" && _currentAppSettings.DontAskAgain && !string.IsNullOrEmpty(_currentAppSettings.RememberedCloseAction))
             {
                 actionToTake = _currentAppSettings.RememberedCloseAction;
-                System.Diagnostics.Debug.WriteLine($"Using remembered action: '{actionToTake}'");
             }
-            // Show dialog if close behavior is "ask" and user hasn't chosen "don't ask again"
             else if (_currentAppSettings.CloseBehavior == "ask" && !_currentAppSettings.DontAskAgain)
             {
-                System.Diagnostics.Debug.WriteLine("Showing close confirmation dialog");
-                // Create a custom dialog
-                var dialog = new CloseConfirmationDialog();
-                dialog.Owner = this; // Set owner for proper modal behavior
+                var dialog = new CloseConfirmationDialog { Owner = this };
                 var result = dialog.ShowDialog();
 
                 if (result == true)
                 {
                     actionToTake = dialog.SelectedAction;
-                    System.Diagnostics.Debug.WriteLine($"User selected action: '{actionToTake}'");
-                    
-                    // If user chose to remember their choice, save it
+
                     if (dialog.RememberChoice)
                     {
                         _currentAppSettings.DontAskAgain = true;
                         _currentAppSettings.RememberedCloseAction = dialog.SelectedAction;
-                        try
-                        {
-                            AppSettingsStore.Save(_currentAppSettings);
-                            System.Diagnostics.Debug.WriteLine("Saved updated settings with remembered choice");
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Error saving settings: {ex.Message}");
-                        }
+                        try { AppSettingsStore.Save(_currentAppSettings); }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"OnClosing save failed: {ex.Message}"); }
                     }
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("User cancelled dialog");
-                    e.Cancel = true; 
+                    e.Cancel = true;
                     base.OnClosing(e);
                     return;
                 }
             }
-
-            System.Diagnostics.Debug.WriteLine($"Final actionToTake: '{actionToTake}'");
 
             // Execute the chosen action
             if (actionToTake == "minimize")
@@ -296,7 +308,10 @@ public partial class MainWindow : Window
 
     async void InitializeAsync()
     {
-        var userDataFolder = Path.Combine(Path.GetTempPath(), "MicrophoneVolumeEnforcer_WebView2");
+        // %LOCALAPPDATA% survives disk-cleanup / temp wipers, so theme + WebView2 cookies stay across reboots.
+        var userDataFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MicrophoneVolumeEnforcer", "WebView2");
         var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
         await webView.EnsureCoreWebView2Async(env);
         // SECURITY HARDENING: Restrict WebView2 capabilities and navigation
@@ -305,8 +320,9 @@ public partial class MainWindow : Window
         settings.AreDefaultContextMenusEnabled = false; // Disable default context menu
         settings.AreDefaultScriptDialogsEnabled = false; // Disable alert/confirm/prompt
 
-        // Attach native host object
-        webView.CoreWebView2.AddHostObjectToScript("nativeHost", new HostBridge(this));
+        // Attach native host object. Field-stored so OnClosed can dispose the underlying CoreAudio state.
+        _hostBridge = new HostBridge(this);
+        webView.CoreWebView2.AddHostObjectToScript("nativeHost", _hostBridge);
         webView.CoreWebView2.ContextMenuRequested += CoreWebView2_ContextMenuRequested;
 
         // Determine path to packaged index.html
@@ -337,17 +353,33 @@ public partial class MainWindow : Window
 
     private void CoreWebView2_ContextMenuRequested(object? sender, CoreWebView2ContextMenuRequestedEventArgs e)
     {
-        e.Handled = true; 
+        e.Handled = true;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        // WebView2 first: kills the JS engine so any in-flight nativeHost.* call cannot land on a disposed
+        // HostBridge across the COM boundary. Then HostBridge tears down CoreAudio. Tray icon last.
+        webView?.Dispose();
+        _hostBridge?.Dispose();
+        _hostBridge = null;
+        if (_notifyIcon != null)
+        {
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _notifyIcon = null;
+        }
+        base.OnClosed(e);
     }
 }
 
-[ClassInterface(ClassInterfaceType.AutoDual)] 
-[ComVisible(true)] 
-public class HostBridge
+[ClassInterface(ClassInterfaceType.AutoDual)]
+[ComVisible(true)]
+public class HostBridge : IDisposable
 {
     private MainWindow _mainWindow;
-    private static MMDeviceEnumerator? _staticDeviceEnumerator; 
-    private readonly SynchronizationContext? _syncContext; 
+    private readonly MMDeviceEnumerator _enumerator = new MMDeviceEnumerator();
+    private readonly SynchronizationContext? _syncContext;
     private const string AppNameForStartup = "MicrophoneVolumeEnforcer"; // Name for registry key
 
     // Per-device enforcement context. One instance lives in _enforced per actively-enforced capture endpoint.
@@ -376,7 +408,6 @@ public class HostBridge
     private bool _isEnforcementEnabled = false;
     private bool _enforceAll = true;
     private float _targetVolume = 1.0f;
-    private string? _singleSelectedDeviceFriendlyName; // single-device mode only; will become MMDevice.ID in Milestone 3
     private System.Threading.Timer? _deviceReconcileTimer;
     private readonly TimeSpan _enforcementGracePeriod = TimeSpan.FromSeconds(1);
     // CoreAudio 1.40.0 keeps RegisterEndpointNotificationCallback internal so we cannot subscribe to device add/remove events.
@@ -386,8 +417,7 @@ public class HostBridge
     public HostBridge(MainWindow mainWindow)
     {
         _mainWindow = mainWindow;
-        _syncContext = SynchronizationContext.Current; 
-        _staticDeviceEnumerator ??= new MMDeviceEnumerator(); 
+        _syncContext = SynchronizationContext.Current;
     }
 
     public string GetHostVersion()
@@ -395,79 +425,48 @@ public class HostBridge
         return "MicrophoneVolumeEnforcer Host v1.0 with CoreAudio";
     }
 
-    public string[] GetMicrophoneDevices()
+    public string GetMicrophoneDevices()
     {
-        try
-        {
-            _staticDeviceEnumerator ??= new MMDeviceEnumerator(); 
-            var enumerator = _staticDeviceEnumerator;
-            var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
-                                    .ToArray(); 
-            
-            if (!devices.Any()) {
-                System.Windows.MessageBox.Show("[C# HostBridge] No active capture devices found.", "CoreAudio Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                return Array.Empty<string>();
-            }
-            string[] deviceNames = devices.Select(d => d.DeviceFriendlyName).ToArray();
-            return deviceNames;
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show($"[C# HostBridge] Error getting devices: {ex.Message}", "CoreAudio Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            return new string[] { $"Error: {ex.Message}" };
-        }
+        // Returned shape: JSON-encoded MicrophoneDeviceInfo[]. JS parses and uses Id as the dropdown value.
+        // Single-string return avoids COM array marshalling and lets us include both id and friendly name.
+        var devices = _enumerator
+            .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+            .Select(d => new MicrophoneDeviceInfo(d.ID, d.DeviceFriendlyName))
+            .ToArray();
+        return JsonSerializer.Serialize(devices, AppJsonContext.Default.MicrophoneDeviceInfoArray);
     }
 
     public void SetMicrophoneVolume(string deviceId, int volume)
     {
-        try
-        {
-            _staticDeviceEnumerator ??= new MMDeviceEnumerator();
-            var enumerator = _staticDeviceEnumerator;
-            if (!IsValidDeviceName(deviceId))
-            {
-                System.Windows.MessageBox.Show("Invalid device identifier provided.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            var device = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
-                                 .FirstOrDefault(d => d.DeviceFriendlyName == deviceId);
+        if (!IsValidDeviceId(deviceId))
+            throw new InvalidOperationException("Invalid device identifier.");
 
-            if (device != null)
-            {
-                float volumeScalar = volume / 100.0f;
-                if (volumeScalar < 0.0f) volumeScalar = 0.0f;
-                if (volumeScalar > 1.0f) volumeScalar = 1.0f;
+        var device = TryGetDeviceById(deviceId)
+            ?? throw new InvalidOperationException($"Device not found: {deviceId}");
 
-                if (device.AudioEndpointVolume != null)
-                {
-                    device.AudioEndpointVolume.MasterVolumeLevelScalar = volumeScalar;
-                }
-                else
-                {
-                    System.Windows.MessageBox.Show($"[C# HostBridge] AudioEndpointVolume is null for device: {deviceId}", "CoreAudio Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-            else
-            {
-                System.Windows.MessageBox.Show($"[C# HostBridge] Device not found: {deviceId}", "CoreAudio Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
+        if (device.AudioEndpointVolume == null)
+            throw new InvalidOperationException($"AudioEndpointVolume unavailable for device: {deviceId}");
+
+        float scalar = volume / 100.0f;
+        if (scalar < 0.0f) scalar = 0.0f;
+        if (scalar > 1.0f) scalar = 1.0f;
+        device.AudioEndpointVolume.MasterVolumeLevelScalar = scalar;
+    }
+
+    private MMDevice? TryGetDeviceById(string id)
+    {
+        try { return _enumerator.GetDevice(id); }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"[C# HostBridge] Error setting volume for {deviceId}: {ex.Message}", "CoreAudio Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Diagnostics.Debug.WriteLine($"GetDevice failed for {id}: {ex.Message}");
+            return null;
         }
     }
 
     public void SaveSettings(string settingsJson)
     {
-        try
-        {
-            AppSettingsStore.SaveRaw(settingsJson);
-        }
-        catch (Exception ex)
-        {
-             System.Windows.MessageBox.Show($"[C# HostBridge] Error saving settings: {ex.Message}", "File Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        // Lets JS surface the error via setStatus. UI-thread MessageBox from a tray-resident app is hostile.
+        AppSettingsStore.SaveRaw(settingsJson);
     }
 
     public string? LoadSettings()
@@ -484,7 +483,6 @@ public class HostBridge
         if (clamped < 0.0f) clamped = 0.0f;
         if (clamped > 1.0f) clamped = 1.0f;
         _targetVolume = clamped;
-        _singleSelectedDeviceFriendlyName = string.IsNullOrEmpty(deviceId) ? null : deviceId;
 
         if (!enable)
         {
@@ -509,11 +507,10 @@ public class HostBridge
 
     private void AttachAllActiveDevices()
     {
-        _staticDeviceEnumerator ??= new MMDeviceEnumerator();
         MMDevice[] devices;
         try
         {
-            devices = _staticDeviceEnumerator
+            devices = _enumerator
                 .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
                 .ToArray();
         }
@@ -534,28 +531,15 @@ public class HostBridge
         }
     }
 
-    private void AttachOnlySelectedDevice(string deviceFriendlyName)
+    private void AttachOnlySelectedDevice(string deviceId)
     {
-        _staticDeviceEnumerator ??= new MMDeviceEnumerator();
-        if (!IsValidDeviceName(deviceFriendlyName))
+        if (!IsValidDeviceId(deviceId))
         {
             DetachAll();
             return;
         }
 
-        MMDevice? target;
-        try
-        {
-            target = _staticDeviceEnumerator
-                .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
-                .FirstOrDefault(d => d.DeviceFriendlyName == deviceFriendlyName);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"AttachOnlySelectedDevice: lookup failed: {ex.Message}");
-            return;
-        }
-
+        MMDevice? target = TryGetDeviceById(deviceId);
         string? targetId = target?.ID;
 
         foreach (var id in _enforced.Keys.Where(k => k != targetId).ToList())
@@ -648,10 +632,9 @@ public class HostBridge
         _syncContext?.Post(_ =>
         {
             if (!_isEnforcementEnabled || !_enforceAll) return;
-            _staticDeviceEnumerator ??= new MMDeviceEnumerator();
-            try
+                try
             {
-                var current = _staticDeviceEnumerator
+                var current = _enumerator
                     .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
                     .ToDictionary(d => d.ID);
 
@@ -710,62 +693,51 @@ public class HostBridge
 
     public void SetStartWithWindows(bool enable)
     {
-        try
-        {
-            string? executablePath = Assembly.GetEntryAssembly()?.Location;
-            if (string.IsNullOrEmpty(executablePath))
-            {
-                System.Windows.MessageBox.Show("Error: Could not determine application executable path.", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
+        string? executablePath = Assembly.GetEntryAssembly()?.Location;
+        if (string.IsNullOrEmpty(executablePath))
+            throw new InvalidOperationException("Could not determine application executable path.");
 
-            RegistryKey? rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
-            if (rk == null)
-            {
-                System.Windows.MessageBox.Show("Error: Could not open registry key for startup.", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
+        using RegistryKey? rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+        if (rk == null)
+            throw new InvalidOperationException("Could not open registry key for startup.");
 
-            if (enable)
-            {
-                rk.SetValue(AppNameForStartup, executablePath);
-            }
-            else
-            {
-                rk.DeleteValue(AppNameForStartup, false); // Do not throw if not found
-            }
-            rk.Close();
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show($"Error setting startup state: {ex.Message}", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        if (enable)
+            rk.SetValue(AppNameForStartup, executablePath);
+        else
+            rk.DeleteValue(AppNameForStartup, false);
     }
 
     public bool GetStartWithWindows()
     {
+        // Best-effort read; on failure the JS layer falls back to the settings.json value, so swallow + log.
         try
         {
-            RegistryKey? rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false);
+            using RegistryKey? rk = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", false);
             if (rk == null) return false;
-            
-            string? value = (string?)rk.GetValue(AppNameForStartup);
-            rk.Close();
-            return !string.IsNullOrEmpty(value);
+            return !string.IsNullOrEmpty((string?)rk.GetValue(AppNameForStartup));
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Error getting startup state: {ex.Message}", "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Diagnostics.Debug.WriteLine($"GetStartWithWindows failed: {ex.Message}");
             return false;
         }
     }
 
-    // --------------------------- SECURITY HELPERS ---------------------------
-    private static bool IsValidDeviceName(string? name)
+    public void Dispose()
     {
-        if (string.IsNullOrWhiteSpace(name) || name!.Length > 128) return false;
-        // Disallow control chars and path separators to mitigate log/file injection
-        return name.All(ch => !char.IsControl(ch) && ch != '\\' && ch != '/');
+        _isEnforcementEnabled = false;
+        StopReconcileTimer();
+        DetachAll();
+        // MMDeviceEnumerator is not IDisposable in CoreAudio 1.40.0; GC handles the underlying COM RCW.
+    }
+
+    // --------------------------- SECURITY HELPERS ---------------------------
+    // CoreAudio device IDs look like {0.0.1.00000000}.{guid}: braces, dots, hex chars, hyphens.
+    // Length cap is generous; the format is fixed but we don't pin it to be tolerant of future changes.
+    private static bool IsValidDeviceId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id!.Length > 256) return false;
+        return id.All(ch => !char.IsControl(ch) && ch != '\\' && ch != '/');
     }
 }
 

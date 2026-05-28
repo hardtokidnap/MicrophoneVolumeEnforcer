@@ -7,10 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Start minimized to tray**: new setting (off by default) for users who launch the app at Windows startup and don't want the window popping up every login.
+- **Enforce on all microphones**: new setting (on by default) extends volume enforcement to every active capture endpoint, not just the selected one. Newly plugged microphones join enforcement within ~2 seconds; unplugged ones drop cleanly.
+
 ### Changed
 - Target framework upgraded from .NET 8.0 to .NET 10.0 (LTS, supported until November 2028).
 - WebView2 SDK upgraded from 1.0.2210.55 to 1.0.3967.48.
 - Installer prerequisite check updated to detect .NET 10.0 Desktop Runtime; download link points at the .NET 10 download page.
+- Microphone dropdown values are now stable device IDs instead of friendly names. Settings files from older versions are migrated automatically on first launch.
+- WebView2 user data folder moved from `%TEMP%` to `%LOCALAPPDATA%`, so theme and other state survive disk-cleanup tools.
+- System.Text.Json source generation enabled for settings serialization; one-time `JsonSerializerOptions` instance cached in `AppSettingsStore`.
+- HostBridge owns a single MMDeviceEnumerator instance; dropped the stale per-call null-check pattern.
+
+### Fixed
+- Error popups removed from hot paths (settings save, volume change, device enumeration, startup-registry read/write). Errors now surface inline in the UI status area instead of blocking dialogs.
+- HostBridge implements IDisposable; MainWindow disposes WebView2, HostBridge, then tray icon on close, so CoreAudio handlers and timers are torn down cleanly.
+
+### Security
+- WebView2 user data folder is now scoped under `%LOCALAPPDATA%` rather than the shared `%TEMP%` directory.
+- Device identifier validation tightened to handle CoreAudio's `{guid}.{guid}` ID format.
 
 ## [Released 2.1.0] - 2025-06-04
 

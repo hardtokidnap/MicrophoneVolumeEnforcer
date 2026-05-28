@@ -113,28 +113,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         try {
-            setStatus('Loading audio devices from device...', 'info');
+            setStatus('Loading audio devices...', 'info');
             microphoneSelect.innerHTML = '<option value="" disabled selected>Loading...</option>';
-            const devices = await nativeHost.GetMicrophoneDevices(); 
+            const devicesJson = await nativeHost.GetMicrophoneDevices();
+            const devices = JSON.parse(devicesJson || '[]');
 
-            microphoneSelect.innerHTML = ''; // Clear loading
+            microphoneSelect.innerHTML = '';
             if (devices && devices.length > 0) {
-                devices.forEach(deviceName => { // Assuming C# returns string[] for now
+                devices.forEach(d => {
                     const option = document.createElement('option');
-                    option.value = deviceName; 
-                    option.textContent = deviceName;
+                    option.value = d.id;
+                    option.textContent = d.name;
                     microphoneSelect.appendChild(option);
                 });
-                setStatus('Audio devices loaded from C#.', 'success');
+                setStatus('Audio devices loaded.', 'success');
             } else {
-                microphoneSelect.innerHTML = '<option value="">No capture devices found (C#)</option>';
-                setStatus('No audio capture devices found (from C#).', 'info');
+                microphoneSelect.innerHTML = '<option value="">No capture devices found</option>';
+                setStatus('No audio capture devices found.', 'info');
             }
         } catch (error) {
-            console.error('Error loading audio devices from device:', error);
-            microphoneSelect.innerHTML = '<option value="">Error loading devices (device)</option>';
-            setStatus(`Error loading devices from device: ${error.message || error}`, 'error');
+            console.error('Error loading audio devices:', error);
+            microphoneSelect.innerHTML = '<option value="">Error loading devices</option>';
+            setStatus(`Error loading devices: ${error.message || error}`, 'error');
         }
+    }
+
+    // Helper: friendly name for status messages, since the dropdown value is now an opaque ID.
+    function selectedDeviceName() {
+        if (!microphoneSelect || !microphoneSelect.selectedOptions || microphoneSelect.selectedOptions.length === 0) return '';
+        const opt = microphoneSelect.selectedOptions[0];
+        return opt.textContent || opt.value || '';
     }
 
     // Debounced handler for volume slider input
@@ -166,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         await nativeHost.SetMicrophoneVolume(selectedDeviceId, parseInt(volume));
                     }
                     await nativeHost.SetEnforcement(selectedDeviceId || '', parseInt(volume), true, enforceAll);
-                    const target = enforceAll ? 'all microphones' : selectedDeviceId;
+                    const target = enforceAll ? 'all microphones' : selectedDeviceName();
                     setStatus(`Volume for ${target} set to ${volume}%.`, 'success');
                 } catch (error) {
                     console.error('Error setting volume via C# (on change):', error);
@@ -189,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await nativeHost.SetEnforcement(selectedDeviceId || '', parseInt(volume), enforceCheckbox.checked, enforceAll);
                 if (enforceCheckbox.checked) {
-                    const target = enforceAll ? 'all microphones' : selectedDeviceId;
+                    const target = enforceAll ? 'all microphones' : selectedDeviceName();
                     setStatus(`Enforcement enabled for ${target}.`, 'success');
                 } else {
                     setStatus('Volume enforcement disabled.', 'info');
@@ -316,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (nativeHost && (enforceAll || settings.selectedDevice) && settings.targetVolume) {
                     try {
                         await nativeHost.SetEnforcement(settings.selectedDevice || '', parseInt(settings.targetVolume), settings.isEnforced, enforceAll);
-                        const target = enforceAll ? 'all microphones' : settings.selectedDevice;
+                        const target = enforceAll ? 'all microphones' : (selectedDeviceName() || 'selected microphone');
                         setStatus(settings.isEnforced ? `Enforcement for ${target} re-initiated.` : `Enforcement off for ${target}.`, 'info');
                     } catch (error) {
                         setStatus(`Error syncing enforcement: ${error.message || error}`, 'error');
@@ -450,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const deviceId = enforceAll ? '' : (savedDeviceSelectionId || microphoneSelect.value || '');
                     await nativeHost.SetEnforcement(deviceId, parseInt(volumeSlider.value), true, enforceAll);
-                    setStatus(enforceAll ? 'Enforcement now applies to all microphones.' : `Enforcement now applies only to ${deviceId || 'the selected microphone'}.`, 'info');
+                    setStatus(enforceAll ? 'Enforcement now applies to all microphones.' : `Enforcement now applies only to ${selectedDeviceName() || 'the selected microphone'}.`, 'info');
                 } catch (error) {
                     console.error('Error switching enforce-all mode:', error);
                     setStatus(`Error switching enforce-all mode: ${error.message || error}`, 'error');
