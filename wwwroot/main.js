@@ -435,16 +435,21 @@ document.addEventListener('DOMContentLoaded', () => {
         saveButton.addEventListener('click', saveSettings);
     }
     if(microphoneSelect) {
-        microphoneSelect.addEventListener('change', () => {
+        microphoneSelect.addEventListener('change', async () => {
             if (microphoneSelect.value && microphoneSelect.value !== ALL_PLACEHOLDER) {
                 savedDeviceSelectionId = microphoneSelect.value;
             }
             if (enforceCheckbox.checked) {
                 const enforceAll = enforceAllCheckbox ? enforceAllCheckbox.checked : false;
-                if (nativeHost) {
-                    nativeHost.SetEnforcement(microphoneSelect.value || '', parseInt(volumeSlider.value), true, enforceAll);
+                try {
+                    if (nativeHost) {
+                        await nativeHost.SetEnforcement(microphoneSelect.value || '', parseInt(volumeSlider.value), true, enforceAll);
+                    }
+                    await handleVolumeChange();
+                } catch (error) {
+                    console.error('Error syncing device change:', error);
+                    setStatus(`Error switching microphone: ${error.message || error}`, 'error');
                 }
-                handleVolumeChange();
             }
             saveSettings();
         });
