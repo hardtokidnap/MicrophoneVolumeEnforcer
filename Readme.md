@@ -1,168 +1,66 @@
 # Microphone Volume Enforcer
 
-A modern WPF application that monitors and enforces microphone volume levels to ensure consistent audio input across different applications and system changes.
+Small WPF app that locks your microphone input volume at whatever you set, so the next driver update, Discord, OBS, or Zoom can't quietly drop it on you.
 
-Yes, i had AI improve the readme. i was tired and i had a huge need for a toilet break. Bite me.
+![Main window](MicrophoneVolumeEnforcer_front.png)
 
-## Features
+## Install
 
-### 🎤 **Audio Control**
-- **Real-time Microphone Monitoring**: Automatically detects and lists all active capture devices
-- **Volume Enforcement**: Maintains specified volume levels even when other applications try to change them
-- **Device Selection**: Choose which microphone to monitor and control
-- **Volume Slider**: Set target volume from 0% to 100%
-- **Live Volume Updates**: Real-time volume adjustment with enforcement
+Grab the latest installer from [Releases](https://github.com/hardtokidnap/MicrophoneVolumeEnforcer/releases/latest). User-level install, no admin prompt.
 
-### 🖥️ **User Interface**
-- **Modern Web-Based UI**: Built with WebView2 for a responsive, modern interface
-- **Dark/Light Theme**: Toggle between themes with system preference detection
-- **Keyboard Shortcut**: Alt+T to quickly toggle theme
-- **System Tray Integration**: Minimize to system tray for background operation
-- **Balloon Notifications**: Informative notifications when minimizing to tray
+Runtime prerequisites the installer checks for:
+- Windows 10 (build 17763) or 11, x64
+- [.NET 10.0 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+- [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (preinstalled on most Windows 10/11 systems)
 
-### ⚙️ **Settings & Configuration**
-- **Auto-Save Settings**: All changes are automatically saved without manual intervention
-- **Start with Windows**: Option to launch application on system startup
-- **Close Behavior Configuration**: Choose what happens when clicking the X button:
-  - Minimize to Tray
-  - Ask what to do
-  - Exit Application
+## What it does
 
-### 🔧 **System Integration**
-- **Windows Registry Integration**: Proper startup configuration through Windows registry
+- Watches the volume on every active capture endpoint and resets it to your target within ~1 second whenever something else changes it.
+- **Enforce on all microphones** (default ON): one slider value applies to every active capture device. New mics plugged in mid-session join within ~2 seconds; unplugged ones drop cleanly.
+- **Start minimized to tray**: launch hidden, useful when paired with "Start with Windows".
+- Tray-resident with a configurable close behavior (minimize, exit, ask).
+- Dark / light theme, `Alt+T` to toggle.
 
-## Installation
+![Settings panel](MicrophoneVolumeEnforcer_settings.png)
 
-### Prerequisites
-- Windows 10/11
-- .NET 10.0 Runtime
-- WebView2 Runtime (usually pre-installed on modern Windows)
+## Build from source
 
-### Running from Source
-1. Clone the repository
-2. Ensure you have .NET 10.0 SDK installed
-3. Run the application:
-   ```bash
-   dotnet run
-   ```
-
-### Building for Distribution
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained
+dotnet run                                                 # dev loop
+dotnet publish -c Release -r win-x64 --self-contained false  # framework-dependent build
+./build-installer.ps1                                      # produces installer/MicrophoneVolumeEnforcer-Setup.exe
 ```
 
-### Building the Installer
+Requires the .NET 10 SDK (`global.json` pins 10.0.204). Inno Setup 6 is needed for the installer script.
 
-An Inno Setup installer is provided for easy distribution. To build it:
+## Where files live
 
-1. **Install Inno Setup** (free): Download from [jrsoftware.org](https://jrsoftware.org/isinfo.php)
-2. **Run the build script**:
-   ```powershell
-   .\build-installer.ps1
-   ```
+| What | Where |
+|---|---|
+| Settings | `%APPDATA%\MicrophoneVolumeEnforcer\settings.json` |
+| WebView2 user data | `%LOCALAPPDATA%\MicrophoneVolumeEnforcer\WebView2` |
+| Startup registry entry | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\MicrophoneVolumeEnforcer` |
 
-The installer will be created as `installer\MicrophoneVolumeEnforcer-Setup.exe` and includes:
-- ✅ **Desktop shortcut option** (checkbox during install)
-- ✅ **Launch at Windows startup** (checkbox during install) 
-- ✅ **Windows 10/11 compatible** (minimum Windows 10 build 17763)
-- ✅ **Lightweight** (~10-15 MB with LZMA compression)
-- ✅ **No admin privileges required** (user-level install)
-- ✅ **Modern UI** with proper uninstall support
-- ✅ **Automatic prerequisite checking** for .NET 10.0 and WebView2
-- ✅ **Guided dependency installation** with direct download links
-- ✅ **Smart detection** of missing system components
+## Architecture
 
-## Usage
+- C# 13 / .NET 10 WPF host
+- WebView2 for the UI (vanilla HTML/CSS/JS in `wwwroot/`)
+- [CoreAudio](https://github.com/morphx666/CoreAudio) for MMDevice enumeration and per-endpoint volume control
+- WinForms `NotifyIcon` for the tray
+- JSON settings with [System.Text.Json source generation](https://learn.microsoft.com/dotnet/standard/serialization/system-text-json/source-generation)
 
-### First Time Setup
-1. Launch the application
-2. Select your microphone from the dropdown list
-3. Set your desired volume level (default: 100%)
-4. Enable "Enforce Volume" to start monitoring
-5. Configure your preferred settings in the Settings panel
-
-### Daily Operation
-- The application runs in the background and maintains your microphone volume
-- Access via system tray icon when minimized
-- Double-click tray icon to restore the window
-- Use settings to customize behavior according to your preferences
-
-### Keyboard Shortcuts
-- **Alt+T**: Toggle between light and dark themes
-
-## Technical Details
-
-### Architecture
-- **Frontend**: HTML/CSS/JavaScript with WebView2
-- **Backend**: C# WPF application with CoreAudio integration
-- **Audio Engine**: CoreAudio library for low-level Windows audio control
-- **Storage**: JSON-based settings stored in user's AppData folder
-
-### File Structure
-```
-MicrophoneVolumeEnforcer/
-├── wwwroot/           # Web UI files
-│   ├── index.html     # Main UI layout
-│   ├── main.js        # Application logic
-│   └── style.css      # Styling and themes
-├── MainWindow.xaml    # WPF window definition
-├── MainWindow.xaml.cs # Application logic and WebView2 integration
-├── App.xaml           # WPF application configuration
-└── App.xaml.cs        # Application startup
-```
-
-### Settings Storage
-Settings are stored in: `%APPDATA%/MicrophoneVolumeEnforcer/settings.json`
+WebView2 surface is locked down: DevTools, default context menu, script dialogs, browser accelerator keys, external drag-drop, `window.open()`, downloads, autofill, and password autosave are all disabled. Navigation is restricted to the packaged `wwwroot/index.html`.
 
 ## Troubleshooting
 
-### Common Issues
-- **No devices showing**: Ensure your microphone is connected and recognized by Windows
-- **Volume not enforcing**: Check that the device is still active and selected
-- **Application won't start with Windows**: Re-enable the setting to refresh registry entries
+- **Dropdown is empty / disabled** — if "Enforce on all microphones" is on, the dropdown is intentionally disabled and shows "All microphones". Untick the setting to pick one specific device.
+- **Doesn't catch up to mid-call volume changes** — drift detection has a 1-second grace period to avoid fighting the user. If the volume keeps drifting back, check that the device shows as "Active" in Windows Sound Settings.
+- **Doesn't start with Windows** — toggle "Start with Windows" off and on again in Settings to refresh the registry entry.
 
-### Debug Information
-The application includes comprehensive debug logging. To view debug output:
-1. Run from Visual Studio in Debug mode, or
-2. Check the Output window in Visual Studio (Debug output)
+## Releases
 
-## Contributing
-
-This application follows standard C# and web development practices. Key areas for contribution:
-- UI/UX improvements
-- Additional audio device features
-- Cross-platform support
-- Performance optimizations
+Tag pushes (`v*.*.*`) trigger the [release workflow](.github/workflows/release.yml), which builds the installer on a Windows runner, pulls the matching version's section from [CHANGELOG.md](CHANGELOG.md), and publishes a GitHub release.
 
 ## License
 
-See [LICENSE.md](LICENSE.md)
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history and changes.
-
-## Overview
-
-**Microphone Volume Enforcer** is a lightweight WPF application that automatically maintains your microphone volume at your desired level, preventing it from being accidentally changed by applications, drivers, or system updates.
-
-## System Requirements
-
-### Minimum Requirements
-- **Operating System**: Windows 10 (Build 17763) or Windows 11
-- **Architecture**: 64-bit (x64) systems only
-- **.NET Runtime**: .NET 10.0 Desktop Runtime
-- **WebView2**: Microsoft Edge WebView2 Runtime
-- **Disk Space**: ~50 MB free space
-- **Memory**: 100 MB RAM
-
-### Automatic Dependency Checking
-The installer automatically checks for required components and will:
-- ✅ **Detect missing .NET 10.0 Runtime** and provide download links
-- ✅ **Detect missing WebView2 Runtime** and provide download links  
-- ✅ **Guide you through the installation process** with helpful dialogs
-- ✅ **Allow you to continue anyway** if you prefer to install dependencies later
-
-> **Note**: Most Windows 10/11 systems already have WebView2 pre-installed. .NET 10.0 Runtime may need to be downloaded for first-time installations.
-
-## Key Features
+[BSD 3-Clause](LICENSE.md). Free to use, modify, redistribute, including commercially. Credit @hardtokidnap.
